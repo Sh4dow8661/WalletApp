@@ -11,14 +11,18 @@ import com.walletapp.ui.theme.ThemeMode
 import com.walletapp.util.CsvExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class SettingsState(
@@ -38,6 +42,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
+
+    private val _exportedFile = MutableSharedFlow<File>(extraBufferCapacity = 1)
+    val exportedFile: SharedFlow<File> = _exportedFile.asSharedFlow()
 
     init {
         combine(settings.currency, settings.themeMode) { currency, theme ->
@@ -61,8 +68,9 @@ class SettingsViewModel @Inject constructor(
                 val accs = accountRepository.observeAccounts().first()
                 val cats = categoryRepository.observeAll().first()
                 val file = CsvExporter.export(context, txs, accs, cats)
+                _exportedFile.tryEmit(file)
                 _state.value = _state.value.copy(
-                    exportMessage = "Exportado: ${file.absolutePath}"
+                    exportMessage = "Listo: ${file.name}"
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(

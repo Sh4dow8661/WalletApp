@@ -52,7 +52,8 @@ fun TransactionEntity.toDomain(): Transaction = Transaction(
     accountId = accountId,
     transferAccountId = transferAccountId,
     note = note,
-    date = date
+    date = date,
+    isOutgoing = isOutgoing
 )
 
 fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
@@ -63,7 +64,8 @@ fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
     accountId = accountId,
     transferAccountId = transferAccountId,
     note = note,
-    date = date
+    date = date,
+    isOutgoing = isOutgoing
 )
 
 fun BudgetEntity.toDomain(spent: Double = 0.0): Budget = Budget(

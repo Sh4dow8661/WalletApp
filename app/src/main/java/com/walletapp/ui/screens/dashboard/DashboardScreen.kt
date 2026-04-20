@@ -300,20 +300,24 @@ fun TransactionRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            val isExpense = transaction.type == TransactionType.EXPENSE
-            val sign = when (transaction.type) {
-                TransactionType.INCOME -> "+"
-                TransactionType.EXPENSE -> "-"
-                TransactionType.TRANSFER -> ""
+            val sign = when {
+                transaction.type == TransactionType.INCOME -> "+"
+                transaction.type == TransactionType.EXPENSE -> "-"
+                transaction.type == TransactionType.TRANSFER && transaction.isOutgoing -> "-"
+                transaction.type == TransactionType.TRANSFER && !transaction.isOutgoing -> "+"
+                else -> ""
+            }
+            val amountColor = when {
+                transaction.type == TransactionType.INCOME -> IncomeGreen
+                transaction.type == TransactionType.EXPENSE -> ExpenseRed
+                transaction.type == TransactionType.TRANSFER && transaction.isOutgoing -> ExpenseRed
+                transaction.type == TransactionType.TRANSFER && !transaction.isOutgoing -> IncomeGreen
+                else -> MaterialTheme.colorScheme.primary
             }
             Text(
                 "$sign${CurrencyFormatter.format(transaction.amount, currency)}",
                 style = MaterialTheme.typography.titleMedium,
-                color = when (transaction.type) {
-                    TransactionType.INCOME -> IncomeGreen
-                    TransactionType.EXPENSE -> ExpenseRed
-                    TransactionType.TRANSFER -> MaterialTheme.colorScheme.primary
-                }
+                color = amountColor
             )
         }
     }

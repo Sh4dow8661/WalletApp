@@ -42,5 +42,6 @@ data class TransactionEntity(
     val accountId: Long,
     val transferAccountId: Long? = null,
     val note: String = "",
-    val date: Long // epoch millis
+    val date: Long, // epoch millis
+    val isOutgoing: Boolean = false
 )

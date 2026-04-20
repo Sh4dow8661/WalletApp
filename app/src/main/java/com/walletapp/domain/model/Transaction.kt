@@ -8,5 +8,6 @@ data class Transaction(
     val accountId: Long,
     val transferAccountId: Long? = null,
     val note: String = "",
-    val date: Long
+    val date: Long,
+    val isOutgoing: Boolean = false
 )

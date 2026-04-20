@@ -126,7 +126,8 @@ class AddEditTransactionViewModel @Inject constructor(
                     accountId = s.accountId,
                     transferAccountId = s.transferAccountId,
                     note = s.note,
-                    date = s.date
+                    date = s.date,
+                    isOutgoing = true
                 )
                 transactionRepository.upsert(sourceTx)
                 val destTx = Transaction(
@@ -136,7 +137,8 @@ class AddEditTransactionViewModel @Inject constructor(
                     accountId = s.transferAccountId!!,
                     transferAccountId = s.accountId,
                     note = s.note,
-                    date = s.date
+                    date = s.date,
+                    isOutgoing = false
                 )
                 // Only insert dest if creating a new transfer
                 if (s.id == 0L) transactionRepository.upsert(destTx)

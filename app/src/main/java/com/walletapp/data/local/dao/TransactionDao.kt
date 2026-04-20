@@ -41,8 +41,8 @@ interface TransactionDao {
     suspend fun delete(transaction: TransactionEntity)
 
     @Query("""
-        SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amount ELSE 0 END),0)
-             - COALESCE(SUM(CASE WHEN type='EXPENSE' THEN amount ELSE 0 END),0)
+        SELECT COALESCE(SUM(CASE WHEN type='INCOME' OR (type='TRANSFER' AND isOutgoing=0) THEN amount ELSE 0 END),0)
+             - COALESCE(SUM(CASE WHEN type='EXPENSE' OR (type='TRANSFER' AND isOutgoing=1) THEN amount ELSE 0 END),0)
         FROM transactions WHERE accountId = :accountId
     """)
     fun observeAccountBalanceDelta(accountId: Long): Flow<Double>
