@@ -3,9 +3,12 @@ package com.walletapp.ui.screens.budgets
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.walletapp.domain.model.Account
 import com.walletapp.domain.model.Budget
+import com.walletapp.domain.model.BudgetRecurrence
 import com.walletapp.domain.model.Category
 import com.walletapp.domain.model.TransactionType
+import com.walletapp.domain.repository.AccountRepository
 import com.walletapp.domain.repository.BudgetRepository
 import com.walletapp.domain.repository.CategoryRepository
 import com.walletapp.util.DateUtils
@@ -16,15 +19,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import javax.inject.Inject
 
 data class AddEditBudgetState(
     val id: Long = 0,
-    val categoryId: Long? = null,
+    val name: String = "",
     val amount: String = "",
-    val year: Int = 0,
-    val month: Int = 0,
-    val categories: List<Category> = emptyList(),
+    // Por defecto: desde hoy hasta fin del mes actual
+    val startDate: Long = DateUtils.startOfDay(System.currentTimeMillis()),
+    val endDate: Long = run {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.timeInMillis
+    },
+    val recurrence: BudgetRecurrence = BudgetRecurrence.NONE,
+    val expenseCategories: List<Category> = emptyList(),
+    val selectedCategoryIds: Set<Long> = emptySet(),   // vacío = todas
+    val accounts: List<Account> = emptyList(),
+    val selectedAccountIds: Set<Long> = emptySet(),    // vacío = todas
+    val reduceByIncome: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null
 )
@@ -33,19 +51,22 @@ data class AddEditBudgetState(
 class AddEditBudgetViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val budgetRepository: BudgetRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        DateUtils.currentMonth().let { (y, m) -> AddEditBudgetState(year = y, month = m) }
-    )
+    private val _state = MutableStateFlow(AddEditBudgetState())
     val state: StateFlow<AddEditBudgetState> = _state.asStateFlow()
 
     private val budgetId: Long = savedStateHandle.get<Long>("id") ?: -1L
 
     init {
         categoryRepository.observeByType(TransactionType.EXPENSE).onEach { cats ->
-            _state.value = _state.value.copy(categories = cats)
+            _state.value = _state.value.copy(expenseCategories = cats)
+        }.launchIn(viewModelScope)
+
+        accountRepository.observeAccounts().onEach { accs ->
+            _state.value = _state.value.copy(accounts = accs)
         }.launchIn(viewModelScope)
 
         if (budgetId > 0) {
@@ -53,37 +74,68 @@ class AddEditBudgetViewModel @Inject constructor(
                 budgetRepository.getById(budgetId)?.let { b ->
                     _state.value = _state.value.copy(
                         id = b.id,
-                        categoryId = b.categoryId,
+                        name = b.name,
                         amount = b.amount.toString(),
-                        year = b.year,
-                        month = b.month
+                        startDate = b.startDate,
+                        endDate = b.endDate,
+                        recurrence = b.recurrence,
+                        selectedCategoryIds = b.categoryIds.toSet(),
+                        selectedAccountIds = b.accountIds.toSet(),
+                        reduceByIncome = b.reduceByIncome
                     )
                 }
             }
         }
     }
 
-    fun setCategory(id: Long?) { _state.value = _state.value.copy(categoryId = id) }
-    fun setAmount(v: String) { _state.value = _state.value.copy(amount = v) }
+    fun setName(v: String) { _state.value = _state.value.copy(name = v, error = null) }
+    fun setAmount(v: String) { _state.value = _state.value.copy(amount = v, error = null) }
+    fun setStartDate(millis: Long) {
+        val start = DateUtils.startOfDay(millis)
+        val end = _state.value.endDate
+        _state.value = _state.value.copy(
+            startDate = start,
+            endDate = if (end < start) DateUtils.endOfDay(millis) else end
+        )
+    }
+    fun setEndDate(millis: Long) { _state.value = _state.value.copy(endDate = DateUtils.endOfDay(millis)) }
+    fun setRecurrence(r: BudgetRecurrence) { _state.value = _state.value.copy(recurrence = r) }
+
+    fun toggleCategory(id: Long) {
+        val current = _state.value.selectedCategoryIds.toMutableSet()
+        if (!current.remove(id)) current.add(id)
+        _state.value = _state.value.copy(selectedCategoryIds = current)
+    }
+    fun selectAllCategories() { _state.value = _state.value.copy(selectedCategoryIds = emptySet()) }
+
+    fun toggleAccount(id: Long) {
+        val current = _state.value.selectedAccountIds.toMutableSet()
+        if (!current.remove(id)) current.add(id)
+        _state.value = _state.value.copy(selectedAccountIds = current)
+    }
+    fun selectAllAccounts() { _state.value = _state.value.copy(selectedAccountIds = emptySet()) }
+
+    fun setReduceByIncome(v: Boolean) { _state.value = _state.value.copy(reduceByIncome = v) }
 
     fun save() {
         val s = _state.value
         val amount = s.amount.toDoubleOrNull()
-        if (amount == null || amount <= 0) {
-            _state.value = s.copy(error = "Monto inválido")
-            return
-        }
-        if (s.categoryId == null) {
-            _state.value = s.copy(error = "Selecciona una categoría")
-            return
+        when {
+            s.name.isBlank() -> { _state.value = s.copy(error = "El nombre es obligatorio"); return }
+            amount == null || amount <= 0 -> { _state.value = s.copy(error = "Monto inválido"); return }
+            s.endDate < s.startDate -> { _state.value = s.copy(error = "La fecha de fin debe ser posterior al inicio"); return }
         }
         viewModelScope.launch {
             val budget = Budget(
                 id = s.id,
-                categoryId = s.categoryId,
-                amount = amount,
-                year = s.year,
-                month = s.month
+                name = s.name.trim(),
+                amount = amount!!,
+                startDate = s.startDate,
+                endDate = s.endDate,
+                recurrence = s.recurrence,
+                categoryIds = s.selectedCategoryIds.toList(),
+                accountIds = s.selectedAccountIds.toList(),
+                reduceByIncome = s.reduceByIncome
             )
             budgetRepository.upsert(budget)
             _state.value = _state.value.copy(saved = true, error = null)

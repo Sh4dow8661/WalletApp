@@ -1,26 +1,17 @@
 package com.walletapp.data.local.entity
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(
-    tableName = "budgets",
-    foreignKeys = [
-        ForeignKey(
-            entity = CategoryEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["categoryId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
-    indices = [Index("categoryId")]
-)
+@Entity(tableName = "budgets")
 data class BudgetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val categoryId: Long,
+    val name: String,
     val amount: Double,
-    val month: Int, // 1..12
-    val year: Int
+    val startDate: Long,         // epoch millis — inicio del período
+    val endDate: Long,           // epoch millis — fin del período (inclusive)
+    val recurrence: String,      // BudgetRecurrence.name
+    val categoryIds: String,     // IDs separados por coma, "" = todas
+    val accountIds: String,      // IDs separados por coma, "" = todas
+    val reduceByIncome: Boolean = false
 )

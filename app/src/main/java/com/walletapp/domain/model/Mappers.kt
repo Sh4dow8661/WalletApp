@@ -68,19 +68,30 @@ fun Transaction.toEntity(): TransactionEntity = TransactionEntity(
     isOutgoing = isOutgoing
 )
 
-fun BudgetEntity.toDomain(spent: Double = 0.0): Budget = Budget(
+fun BudgetEntity.toDomain(spent: Double = 0.0, income: Double = 0.0): Budget = Budget(
     id = id,
-    categoryId = categoryId,
+    name = name,
     amount = amount,
-    month = month,
-    year = year,
-    spent = spent
+    startDate = startDate,
+    endDate = endDate,
+    recurrence = BudgetRecurrence.fromString(recurrence),
+    categoryIds = if (categoryIds.isBlank()) emptyList()
+                  else categoryIds.split(",").mapNotNull { it.toLongOrNull() },
+    accountIds = if (accountIds.isBlank()) emptyList()
+                 else accountIds.split(",").mapNotNull { it.toLongOrNull() },
+    reduceByIncome = reduceByIncome,
+    spent = spent,
+    income = income
 )
 
 fun Budget.toEntity(): BudgetEntity = BudgetEntity(
     id = id,
-    categoryId = categoryId,
+    name = name,
     amount = amount,
-    month = month,
-    year = year
+    startDate = startDate,
+    endDate = endDate,
+    recurrence = recurrence.name,
+    categoryIds = categoryIds.joinToString(","),
+    accountIds = accountIds.joinToString(","),
+    reduceByIncome = reduceByIncome
 )

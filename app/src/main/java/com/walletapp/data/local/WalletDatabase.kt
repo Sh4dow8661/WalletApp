@@ -20,7 +20,7 @@ import com.walletapp.data.local.entity.TransactionEntity
         TransactionEntity::class,
         BudgetEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class WalletDatabase : RoomDatabase() {
@@ -35,6 +35,29 @@ abstract class WalletDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN isOutgoing INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** Rediseño completo de la tabla budgets con rango de fechas, recurrencia,
+         *  filtros de categoría/cuenta y opción de reducir con ingresos. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS budgets")
+                db.execSQL(
+                    """
+                    CREATE TABLE budgets (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name        TEXT    NOT NULL,
+                        amount      REAL    NOT NULL,
+                        startDate   INTEGER NOT NULL,
+                        endDate     INTEGER NOT NULL,
+                        recurrence  TEXT    NOT NULL,
+                        categoryIds TEXT    NOT NULL,
+                        accountIds  TEXT    NOT NULL,
+                        reduceByIncome INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }

@@ -32,7 +32,7 @@ object DatabaseModule {
             WalletDatabase::class.java,
             WalletDatabase.DATABASE_NAME
         )
-            .addMigrations(WalletDatabase.MIGRATION_1_2)
+            .addMigrations(WalletDatabase.MIGRATION_1_2, WalletDatabase.MIGRATION_2_3)
             .addCallback(object : androidx.room.RoomDatabase.Callback() {
                 override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                     super.onCreate(db)
