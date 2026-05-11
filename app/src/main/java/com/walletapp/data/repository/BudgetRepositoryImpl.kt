@@ -3,6 +3,7 @@ package com.walletapp.data.repository
 import com.walletapp.data.local.dao.BudgetDao
 import com.walletapp.data.local.dao.TransactionDao
 import com.walletapp.domain.model.Budget
+import com.walletapp.domain.model.BudgetPeriod
 import com.walletapp.domain.model.toDomain
 import com.walletapp.domain.model.toEntity
 import com.walletapp.domain.repository.BudgetRepository
@@ -26,25 +27,40 @@ class BudgetRepositoryImpl @Inject constructor(
 
             val flows = entities.map { entity ->
                 val baseBudget = entity.toDomain()
-                transactionDao.observeInRange(entity.startDate, entity.endDate)
+                val (periodStart, periodEnd) = BudgetPeriod.currentPeriod(
+                    startDate = baseBudget.startDate,
+                    endDate = baseBudget.endDate,
+                    recurrence = baseBudget.recurrence
+                )
+
+                transactionDao.observeInRange(periodStart, periodEnd)
                     .map { txList ->
                         val catSet = baseBudget.categoryIds.toSet()
                         val accSet = baseBudget.accountIds.toSet()
 
-                        val spent = txList.filter { tx ->
-                            tx.type == "EXPENSE" &&
-                            (catSet.isEmpty() || tx.categoryId in catSet) &&
-                            (accSet.isEmpty() || tx.accountId in accSet)
-                        }.sumOf { it.amount }
+                        val spent = txList.asSequence()
+                            .filter { tx ->
+                                tx.type == "EXPENSE" &&
+                                (catSet.isEmpty() || tx.categoryId in catSet) &&
+                                (accSet.isEmpty() || tx.accountId in accSet)
+                            }
+                            .sumOf { it.amount }
 
                         val income = if (baseBudget.reduceByIncome) {
-                            txList.filter { tx ->
-                                tx.type == "INCOME" &&
-                                (accSet.isEmpty() || tx.accountId in accSet)
-                            }.sumOf { it.amount }
+                            txList.asSequence()
+                                .filter { tx ->
+                                    tx.type == "INCOME" &&
+                                    (accSet.isEmpty() || tx.accountId in accSet)
+                                }
+                                .sumOf { it.amount }
                         } else 0.0
 
-                        baseBudget.copy(spent = spent, income = income)
+                        baseBudget.copy(
+                            spent = spent,
+                            income = income,
+                            periodStart = periodStart,
+                            periodEnd = periodEnd
+                        )
                     }
             }
 

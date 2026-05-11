@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,7 +69,6 @@ fun AddEditBudgetScreen(
     val startPickerState = rememberDatePickerState(initialSelectedDateMillis = state.startDate)
     val endPickerState   = rememberDatePickerState(initialSelectedDateMillis = state.endDate)
 
-    // Sync picker state when editing an existing budget
     LaunchedEffect(state.startDate) { startPickerState.selectedDateMillis = state.startDate }
     LaunchedEffect(state.endDate)   { endPickerState.selectedDateMillis   = state.endDate   }
 
@@ -142,35 +142,20 @@ fun AddEditBudgetScreen(
             // ── Monto ────────────────────────────────────────────────
             OutlinedTextField(
                 value = state.amount,
-                onValueChange = { v -> if (v.isEmpty() || v.toDoubleOrNull() != null) viewModel.setAmount(v) },
-                label = { Text("Monto límite") },
+                onValueChange = { v -> if (v.isEmpty() || v.replace(",", ".").toDoubleOrNull() != null) viewModel.setAmount(v) },
+                label = { Text("Monto límite por período") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
-            // ── Rango de fechas ───────────────────────────────────────
-            SectionLabel("Rango de fechas")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DateCard(
-                    label = "Inicio",
-                    date = DateUtils.formatDate(state.startDate),
-                    modifier = Modifier.weight(1f),
-                    onClick = { showStartPicker = true }
-                )
-                DateCard(
-                    label = "Fin",
-                    date = DateUtils.formatDate(state.endDate),
-                    modifier = Modifier.weight(1f),
-                    onClick = { showEndPicker = true }
-                )
-            }
-
             // ── Recurrencia ───────────────────────────────────────────
-            SectionLabel("Recurrencia")
+            SectionLabel("Período")
+            Text(
+                "Define cada cuánto se reinicia el presupuesto",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,12 +171,79 @@ fun AddEditBudgetScreen(
                 }
             }
 
+            // ── Fechas según el modo ──────────────────────────────────
+            if (state.recurrence == BudgetRecurrence.NONE) {
+                SectionLabel("Rango de fechas")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    DateCard(
+                        label = "Inicio",
+                        date = DateUtils.formatDate(state.startDate),
+                        modifier = Modifier.weight(1f),
+                        onClick = { showStartPicker = true }
+                    )
+                    DateCard(
+                        label = "Fin",
+                        date = DateUtils.formatDate(state.endDate),
+                        modifier = Modifier.weight(1f),
+                        onClick = { showEndPicker = true }
+                    )
+                }
+            } else {
+                SectionLabel("Inicio del primer período")
+                Text(
+                    "Define el día de corte. El presupuesto se renovará automáticamente cada ${state.recurrence.label.lowercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                DateCard(
+                    label = "Fecha de inicio",
+                    date = DateUtils.formatDate(state.startDate),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showStartPicker = true }
+                )
+
+                // Vista previa del período actual
+                val (prevStart, prevEnd) = state.previewPeriod
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Repeat,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                "Período actual",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "${DateUtils.formatDate(prevStart)} → ${DateUtils.formatDate(prevEnd)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
             HorizontalDivider()
 
             // ── Categorías de gasto ───────────────────────────────────
             SectionLabel("Categorías de gasto")
             Text(
-                "Selecciona cuáles gastos cuenta este presupuesto",
+                "Selecciona qué gastos cuentan para este presupuesto",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -201,7 +253,6 @@ fun AddEditBudgetScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Chip "Todas"
                 FilterChip(
                     selected = state.selectedCategoryIds.isEmpty(),
                     onClick = { viewModel.selectAllCategories() },
@@ -261,7 +312,7 @@ fun AddEditBudgetScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Reducir con ingresos", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Si hay ingresos durante el período, el límite del presupuesto se reduce",
+                        "Si recibes ingresos durante el período, el límite disponible se reduce",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

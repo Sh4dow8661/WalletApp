@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.walletapp.domain.model.Account
 import com.walletapp.domain.model.Budget
+import com.walletapp.domain.model.BudgetPeriod
 import com.walletapp.domain.model.BudgetRecurrence
 import com.walletapp.domain.model.Category
 import com.walletapp.domain.model.TransactionType
@@ -20,14 +21,16 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 data class AddEditBudgetState(
     val id: Long = 0,
     val name: String = "",
     val amount: String = "",
-    // Por defecto: desde hoy hasta fin del mes actual
+    /** Por defecto: hoy a las 00:00 */
     val startDate: Long = DateUtils.startOfDay(System.currentTimeMillis()),
+    /** Por defecto: fin del mes actual (solo se usa cuando recurrence == NONE) */
     val endDate: Long = run {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 23)
@@ -37,7 +40,7 @@ data class AddEditBudgetState(
         cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
         cal.timeInMillis
     },
-    val recurrence: BudgetRecurrence = BudgetRecurrence.NONE,
+    val recurrence: BudgetRecurrence = BudgetRecurrence.MONTHLY,
     val expenseCategories: List<Category> = emptyList(),
     val selectedCategoryIds: Set<Long> = emptySet(),   // vacío = todas
     val accounts: List<Account> = emptyList(),
@@ -45,7 +48,11 @@ data class AddEditBudgetState(
     val reduceByIncome: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null
-)
+) {
+    /** Vista previa del período actual según la recurrencia y startDate. */
+    val previewPeriod: Pair<Long, Long>
+        get() = BudgetPeriod.currentPeriod(startDate, endDate, recurrence)
+}
 
 @HiltViewModel
 class AddEditBudgetViewModel @Inject constructor(
@@ -75,7 +82,7 @@ class AddEditBudgetViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         id = b.id,
                         name = b.name,
-                        amount = b.amount.toString(),
+                        amount = formatAmountInput(b.amount),
                         startDate = b.startDate,
                         endDate = b.endDate,
                         recurrence = b.recurrence,
@@ -90,16 +97,38 @@ class AddEditBudgetViewModel @Inject constructor(
 
     fun setName(v: String) { _state.value = _state.value.copy(name = v, error = null) }
     fun setAmount(v: String) { _state.value = _state.value.copy(amount = v, error = null) }
+
     fun setStartDate(millis: Long) {
         val start = DateUtils.startOfDay(millis)
-        val end = _state.value.endDate
-        _state.value = _state.value.copy(
-            startDate = start,
-            endDate = if (end < start) DateUtils.endOfDay(millis) else end
-        )
+        val current = _state.value
+        val end = if (current.recurrence == BudgetRecurrence.NONE && current.endDate < start) {
+            DateUtils.endOfDay(millis)
+        } else current.endDate
+        _state.value = current.copy(startDate = start, endDate = end, error = null)
     }
-    fun setEndDate(millis: Long) { _state.value = _state.value.copy(endDate = DateUtils.endOfDay(millis)) }
-    fun setRecurrence(r: BudgetRecurrence) { _state.value = _state.value.copy(recurrence = r) }
+
+    fun setEndDate(millis: Long) {
+        _state.value = _state.value.copy(endDate = DateUtils.endOfDay(millis), error = null)
+    }
+
+    fun setRecurrence(r: BudgetRecurrence) {
+        val current = _state.value
+        // Al cambiar a recurrente, ajusta endDate para que represente la duración del primer período.
+        val newEnd = when (r) {
+            BudgetRecurrence.WEEKLY -> current.startDate + TimeUnit.DAYS.toMillis(7) - 1L
+            BudgetRecurrence.BIWEEKLY -> current.startDate + TimeUnit.DAYS.toMillis(14) - 1L
+            BudgetRecurrence.MONTHLY -> {
+                val cal = Calendar.getInstance().apply {
+                    timeInMillis = current.startDate
+                    add(Calendar.MONTH, 1)
+                    add(Calendar.MILLISECOND, -1)
+                }
+                cal.timeInMillis
+            }
+            BudgetRecurrence.NONE -> current.endDate
+        }
+        _state.value = current.copy(recurrence = r, endDate = newEnd, error = null)
+    }
 
     fun toggleCategory(id: Long) {
         val current = _state.value.selectedCategoryIds.toMutableSet()
@@ -119,11 +148,12 @@ class AddEditBudgetViewModel @Inject constructor(
 
     fun save() {
         val s = _state.value
-        val amount = s.amount.toDoubleOrNull()
+        val amount = s.amount.replace(",", ".").toDoubleOrNull()
         when {
             s.name.isBlank() -> { _state.value = s.copy(error = "El nombre es obligatorio"); return }
             amount == null || amount <= 0 -> { _state.value = s.copy(error = "Monto inválido"); return }
-            s.endDate < s.startDate -> { _state.value = s.copy(error = "La fecha de fin debe ser posterior al inicio"); return }
+            s.recurrence == BudgetRecurrence.NONE && s.endDate < s.startDate ->
+                { _state.value = s.copy(error = "La fecha de fin debe ser posterior al inicio"); return }
         }
         viewModelScope.launch {
             val budget = Budget(
@@ -149,5 +179,10 @@ class AddEditBudgetViewModel @Inject constructor(
             budgetRepository.getById(s.id)?.let { budgetRepository.delete(it) }
             _state.value = _state.value.copy(saved = true)
         }
+    }
+
+    private fun formatAmountInput(value: Double): String {
+        // Evita "1500.0" como texto inicial; muestra entero si no hay decimales.
+        return if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
     }
 }

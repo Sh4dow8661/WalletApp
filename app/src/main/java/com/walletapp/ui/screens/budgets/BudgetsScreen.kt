@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
@@ -39,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.walletapp.domain.model.Budget
 import com.walletapp.domain.model.BudgetRecurrence
 import com.walletapp.ui.theme.ExpenseRed
+import com.walletapp.ui.theme.IncomeGreen
 import com.walletapp.ui.theme.WarningAmber
 import com.walletapp.util.CurrencyFormatter
 import com.walletapp.util.DateUtils
@@ -72,7 +74,7 @@ fun BudgetsScreen(
                 Text("Aún no hay presupuestos", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Crea un presupuesto con rango de fechas y elige qué gastos y cuentas rastrear",
+                    "Crea un presupuesto, elige el período (semanal, quincenal, mensual o único) y rastrea tus gastos automáticamente",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -128,13 +130,13 @@ private fun BudgetCard(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "${DateUtils.formatDate(budget.startDate)} → ${DateUtils.formatDate(budget.endDate)}",
+                        "${DateUtils.formatDate(budget.periodStart)} → ${DateUtils.formatDate(budget.periodEnd)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Icono de alerta / recurrencia
+                // Icono de estado
                 Box {
                     when {
                         budget.isOverBudget -> Icon(Icons.Default.Warning, null, tint = ExpenseRed)
@@ -142,11 +144,12 @@ private fun BudgetCard(
                         budget.recurrence != BudgetRecurrence.NONE ->
                             Icon(Icons.Default.Repeat, null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else -> Icon(Icons.Default.CheckCircle, null, tint = IncomeGreen)
                     }
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
 
             // ── Chips de contexto ────────────────────────────────────
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,6 +227,28 @@ private fun BudgetCard(
                     color = if (budget.isOverBudget) ExpenseRed
                             else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // ── Tiempo restante + ritmo sugerido ─────────────────────
+            if (budget.isActive && budget.daysRemaining > 0 && !budget.isOverBudget) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val dayLabel = if (budget.daysRemaining == 1) "1 día restante"
+                                   else "${budget.daysRemaining} días restantes"
+                    Text(
+                        dayLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "≈ ${CurrencyFormatter.format(budget.suggestedDailySpend, currency)}/día",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
