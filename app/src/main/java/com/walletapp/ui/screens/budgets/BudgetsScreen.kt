@@ -35,7 +35,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.walletapp.domain.model.Budget
 import com.walletapp.domain.model.BudgetRecurrence
@@ -105,6 +108,12 @@ private fun BudgetCard(
     currency: String,
     onClick: () -> Unit
 ) {
+    val accentColor = when {
+        budget.isOverBudget -> ExpenseRed
+        budget.isNearLimit  -> WarningAmber
+        else                -> IncomeGreen
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -136,7 +145,6 @@ private fun BudgetCard(
                     )
                 }
 
-                // Icono de estado
                 Box {
                     when {
                         budget.isOverBudget -> Icon(Icons.Default.Warning, null, tint = ExpenseRed)
@@ -149,10 +157,85 @@ private fun BudgetCard(
                 }
             }
 
+            Spacer(Modifier.height(16.dp))
+
+            // ── DESTACADO: Restante ─────────────────────────────────
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                   modifier = Modifier.fillMaxWidth()) {
+                val mainLabel = if (budget.isOverBudget) "Excedido" else "Te queda"
+                Text(
+                    mainLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(2.dp))
+                val mainAmount = if (budget.isOverBudget) budget.overspent else budget.remaining
+                val prefix = if (budget.isOverBudget) "−" else ""
+                Text(
+                    "$prefix${CurrencyFormatter.format(mainAmount, currency)}",
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 36.sp
+                    ),
+                    color = accentColor
+                )
+                if (budget.isActive && budget.daysRemaining > 0 && !budget.isOverBudget) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "≈ ${CurrencyFormatter.format(budget.suggestedDailySpend, currency)} por día " +
+                        "durante ${if (budget.daysRemaining == 1) "1 día" else "${budget.daysRemaining} días"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ── Barra de progreso ────────────────────────────────────
+            LinearProgressIndicator(
+                progress = { budget.progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                color = accentColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+
             Spacer(Modifier.height(8.dp))
 
-            // ── Chips de contexto ────────────────────────────────────
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // ── Detalle: gastado / límite ────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "${CurrencyFormatter.format(budget.netSpent, currency)} de ${CurrencyFormatter.format(budget.amount, currency)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${(budget.progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Desglose si reduceByIncome está activo y hubo ingresos
+            if (budget.reduceByIncome && budget.income > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Gasto bruto ${CurrencyFormatter.format(budget.spent, currency)} − ingresos ${CurrencyFormatter.format(budget.income, currency)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IncomeGreen
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Chips de contexto al final ───────────────────────────
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (budget.recurrence != BudgetRecurrence.NONE) {
                     ContextChip(budget.recurrence.label)
                 }
@@ -164,91 +247,6 @@ private fun BudgetCard(
                     if (budget.accountIds.isEmpty()) "Todas las cuentas"
                     else "${budget.accountIds.size} cuenta${if (budget.accountIds.size > 1) "s" else ""}"
                 )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // ── Montos ───────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    "Gastado: ${CurrencyFormatter.format(budget.spent, currency)}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    "de ${CurrencyFormatter.format(budget.effectiveAmount, currency)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Nota de reducción por ingreso
-            if (budget.reduceByIncome && budget.income > 0) {
-                Text(
-                    "Ingresos del período: −${CurrencyFormatter.format(budget.income, currency)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Barra de progreso ────────────────────────────────────
-            LinearProgressIndicator(
-                progress = { budget.progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                color = when {
-                    budget.isOverBudget -> ExpenseRed
-                    budget.isNearLimit  -> WarningAmber
-                    else                -> MaterialTheme.colorScheme.primary
-                },
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("${(budget.progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall)
-                val label = when {
-                    budget.isOverBudget -> "Excedido en ${CurrencyFormatter.format(budget.spent - budget.effectiveAmount, currency)}"
-                    else -> "Restante: ${CurrencyFormatter.format(budget.remaining, currency)}"
-                }
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (budget.isOverBudget) ExpenseRed
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // ── Tiempo restante + ritmo sugerido ─────────────────────
-            if (budget.isActive && budget.daysRemaining > 0 && !budget.isOverBudget) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    val dayLabel = if (budget.daysRemaining == 1) "1 día restante"
-                                   else "${budget.daysRemaining} días restantes"
-                    Text(
-                        dayLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "≈ ${CurrencyFormatter.format(budget.suggestedDailySpend, currency)}/día",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
     }

@@ -35,17 +35,21 @@ data class Budget(
     /** Fin del período actual (calculado dinámicamente). */
     val periodEnd: Long = endDate
 ) {
-    /** Monto efectivo del presupuesto (reducido por ingresos si está activado). */
-    val effectiveAmount: Double
-        get() = if (reduceByIncome) (amount - income).coerceAtLeast(0.0) else amount
+    /** Gasto neto: si reduceByIncome está activo, los ingresos del período se restan al gasto
+     *  (los ingresos se tratan como reembolsos que liberan presupuesto). */
+    val netSpent: Double
+        get() = if (reduceByIncome) (spent - income).coerceAtLeast(0.0) else spent
 
     val progress: Float
-        get() = if (effectiveAmount > 0) (spent / effectiveAmount).toFloat().coerceIn(0f, 1f) else 0f
+        get() = if (amount > 0) (netSpent / amount).toFloat().coerceIn(0f, 1f) else 0f
 
     val remaining: Double
-        get() = (effectiveAmount - spent).coerceAtLeast(0.0)
+        get() = (amount - netSpent).coerceAtLeast(0.0)
 
-    val isOverBudget: Boolean get() = spent > effectiveAmount
+    val overspent: Double
+        get() = (netSpent - amount).coerceAtLeast(0.0)
+
+    val isOverBudget: Boolean get() = netSpent > amount
     val isNearLimit: Boolean get() = progress >= 0.8f && !isOverBudget
 
     /** Para presupuestos recurrentes: siempre activo desde startDate. Para NONE: dentro del rango. */
@@ -78,6 +82,14 @@ data class Budget(
     /** Gasto sugerido por día para no excederse en lo que queda del período. */
     val suggestedDailySpend: Double
         get() = if (daysRemaining > 0) remaining / daysRemaining else 0.0
+
+    /** Días transcurridos del período actual (mínimo 1). */
+    val daysElapsed: Int
+        get() = (periodDurationDays - daysRemaining).coerceAtLeast(1)
+
+    /** Promedio de gasto neto por día hasta ahora. */
+    val averageDailySpend: Double
+        get() = netSpent / daysElapsed
 }
 
 object BudgetPeriod {

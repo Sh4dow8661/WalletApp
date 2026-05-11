@@ -304,15 +304,15 @@ fun AddEditBudgetScreen(
 
             HorizontalDivider()
 
-            // ── Reducir con ingresos ──────────────────────────────────
+            // ── Restar ingresos del gasto ─────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Reducir con ingresos", style = MaterialTheme.typography.titleSmall)
+                    Text("Restar ingresos del gasto", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Si recibes ingresos durante el período, el límite disponible se reduce",
+                        "Los ingresos del período cuentan como reembolsos: aumentan tu dinero restante",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
