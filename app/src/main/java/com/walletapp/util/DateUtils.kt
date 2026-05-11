@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 object DateUtils {
 
@@ -37,6 +38,31 @@ object DateUtils {
         cal.set(Calendar.SECOND, 59)
         cal.set(Calendar.MILLISECOND, 999)
         return cal.timeInMillis
+    }
+
+    // Material3 DatePicker devuelve `selectedDateMillis` como medianoche UTC del día
+    // elegido. Estos helpers traducen entre ese formato y la medianoche local que
+    // usa el resto de la app — sin esto las fechas se corren un día en cualquier
+    // huso horario distinto de UTC.
+    fun pickerMillisToLocalStartOfDay(utcMillis: Long): Long {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
+        return Calendar.getInstance().apply {
+            clear()
+            set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    fun pickerMillisToLocalEndOfDay(utcMillis: Long): Long =
+        endOfDay(pickerMillisToLocalStartOfDay(utcMillis))
+
+    fun localMillisToPickerMillis(localMillis: Long): Long {
+        val local = Calendar.getInstance().apply { timeInMillis = localMillis }
+        return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
     /** Returns [start, end] of the given month (epoch millis). */

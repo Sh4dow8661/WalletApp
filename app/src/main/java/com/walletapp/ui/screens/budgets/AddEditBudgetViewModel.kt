@@ -101,9 +101,11 @@ class AddEditBudgetViewModel @Inject constructor(
     fun setStartDate(millis: Long) {
         val start = DateUtils.startOfDay(millis)
         val current = _state.value
-        val end = if (current.recurrence == BudgetRecurrence.NONE && current.endDate < start) {
-            DateUtils.endOfDay(millis)
-        } else current.endDate
+        val end = when (current.recurrence) {
+            BudgetRecurrence.NONE ->
+                if (current.endDate < start) DateUtils.endOfDay(start) else current.endDate
+            else -> defaultEndForRecurrence(start, current.recurrence)
+        }
         _state.value = current.copy(startDate = start, endDate = end, error = null)
     }
 
@@ -113,21 +115,24 @@ class AddEditBudgetViewModel @Inject constructor(
 
     fun setRecurrence(r: BudgetRecurrence) {
         val current = _state.value
-        // Al cambiar a recurrente, ajusta endDate para que represente la duración del primer período.
         val newEnd = when (r) {
-            BudgetRecurrence.WEEKLY -> current.startDate + TimeUnit.DAYS.toMillis(7) - 1L
-            BudgetRecurrence.BIWEEKLY -> current.startDate + TimeUnit.DAYS.toMillis(14) - 1L
-            BudgetRecurrence.MONTHLY -> {
-                val cal = Calendar.getInstance().apply {
-                    timeInMillis = current.startDate
-                    add(Calendar.MONTH, 1)
-                    add(Calendar.MILLISECOND, -1)
-                }
-                cal.timeInMillis
-            }
-            BudgetRecurrence.NONE -> current.endDate
+            BudgetRecurrence.NONE ->
+                if (current.endDate < current.startDate) DateUtils.endOfDay(current.startDate)
+                else current.endDate
+            else -> defaultEndForRecurrence(current.startDate, r)
         }
         _state.value = current.copy(recurrence = r, endDate = newEnd, error = null)
+    }
+
+    private fun defaultEndForRecurrence(start: Long, r: BudgetRecurrence): Long = when (r) {
+        BudgetRecurrence.WEEKLY -> start + TimeUnit.DAYS.toMillis(7) - 1L
+        BudgetRecurrence.BIWEEKLY -> start + TimeUnit.DAYS.toMillis(14) - 1L
+        BudgetRecurrence.MONTHLY -> Calendar.getInstance().apply {
+            timeInMillis = start
+            add(Calendar.MONTH, 1)
+            add(Calendar.MILLISECOND, -1)
+        }.timeInMillis
+        BudgetRecurrence.NONE -> DateUtils.endOfDay(start)
     }
 
     fun toggleCategory(id: Long) {

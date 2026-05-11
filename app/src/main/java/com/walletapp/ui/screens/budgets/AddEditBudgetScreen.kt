@@ -66,18 +66,28 @@ fun AddEditBudgetScreen(
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker   by remember { mutableStateOf(false) }
 
-    val startPickerState = rememberDatePickerState(initialSelectedDateMillis = state.startDate)
-    val endPickerState   = rememberDatePickerState(initialSelectedDateMillis = state.endDate)
+    val startPickerState = rememberDatePickerState(
+        initialSelectedDateMillis = DateUtils.localMillisToPickerMillis(state.startDate)
+    )
+    val endPickerState = rememberDatePickerState(
+        initialSelectedDateMillis = DateUtils.localMillisToPickerMillis(state.endDate)
+    )
 
-    LaunchedEffect(state.startDate) { startPickerState.selectedDateMillis = state.startDate }
-    LaunchedEffect(state.endDate)   { endPickerState.selectedDateMillis   = state.endDate   }
+    LaunchedEffect(state.startDate) {
+        startPickerState.selectedDateMillis = DateUtils.localMillisToPickerMillis(state.startDate)
+    }
+    LaunchedEffect(state.endDate) {
+        endPickerState.selectedDateMillis = DateUtils.localMillisToPickerMillis(state.endDate)
+    }
 
     if (showStartPicker) {
         DatePickerDialog(
             onDismissRequest = { showStartPicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    startPickerState.selectedDateMillis?.let { viewModel.setStartDate(it) }
+                    startPickerState.selectedDateMillis?.let {
+                        viewModel.setStartDate(DateUtils.pickerMillisToLocalStartOfDay(it))
+                    }
                     showStartPicker = false
                 }) { Text("Aceptar") }
             },
@@ -92,7 +102,9 @@ fun AddEditBudgetScreen(
             onDismissRequest = { showEndPicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    endPickerState.selectedDateMillis?.let { viewModel.setEndDate(it) }
+                    endPickerState.selectedDateMillis?.let {
+                        viewModel.setEndDate(DateUtils.pickerMillisToLocalEndOfDay(it))
+                    }
                     showEndPicker = false
                 }) { Text("Aceptar") }
             },

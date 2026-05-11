@@ -221,13 +221,15 @@ private fun DateSelector(date: Long, onDateChange: (Long) -> Unit) {
     }
     if (showDialog) {
         val datePickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = date
+            initialSelectedDateMillis = DateUtils.localMillisToPickerMillis(date)
         )
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { showDialog = false },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let(onDateChange)
+                    datePickerState.selectedDateMillis?.let {
+                        onDateChange(DateUtils.pickerMillisToLocalStartOfDay(it))
+                    }
                     showDialog = false
                 }) { Text("OK") }
             },
