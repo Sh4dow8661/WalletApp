@@ -46,6 +46,7 @@ data class AddEditBudgetState(
     val accounts: List<Account> = emptyList(),
     val selectedAccountIds: Set<Long> = emptySet(),    // vacío = todas
     val reduceByIncome: Boolean = false,
+    val includeTransfers: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null
 ) {
@@ -88,7 +89,8 @@ class AddEditBudgetViewModel @Inject constructor(
                         recurrence = b.recurrence,
                         selectedCategoryIds = b.categoryIds.toSet(),
                         selectedAccountIds = b.accountIds.toSet(),
-                        reduceByIncome = b.reduceByIncome
+                        reduceByIncome = b.reduceByIncome,
+                        includeTransfers = b.includeTransfers
                     )
                 }
             }
@@ -150,6 +152,7 @@ class AddEditBudgetViewModel @Inject constructor(
     fun selectAllAccounts() { _state.value = _state.value.copy(selectedAccountIds = emptySet()) }
 
     fun setReduceByIncome(v: Boolean) { _state.value = _state.value.copy(reduceByIncome = v) }
+    fun setIncludeTransfers(v: Boolean) { _state.value = _state.value.copy(includeTransfers = v) }
 
     fun save() {
         val s = _state.value
@@ -170,7 +173,8 @@ class AddEditBudgetViewModel @Inject constructor(
                 recurrence = s.recurrence,
                 categoryIds = s.selectedCategoryIds.toList(),
                 accountIds = s.selectedAccountIds.toList(),
-                reduceByIncome = s.reduceByIncome
+                reduceByIncome = s.reduceByIncome,
+                includeTransfers = s.includeTransfers
             )
             budgetRepository.upsert(budget)
             _state.value = _state.value.copy(saved = true, error = null)

@@ -80,6 +80,7 @@ fun BudgetEntity.toDomain(spent: Double = 0.0, income: Double = 0.0): Budget = B
     accountIds = if (accountIds.isBlank()) emptyList()
                  else accountIds.split(",").mapNotNull { it.toLongOrNull() },
     reduceByIncome = reduceByIncome,
+    includeTransfers = includeTransfers,
     spent = spent,
     income = income
 )
@@ -93,5 +94,6 @@ fun Budget.toEntity(): BudgetEntity = BudgetEntity(
     recurrence = recurrence.name,
     categoryIds = categoryIds.joinToString(","),
     accountIds = accountIds.joinToString(","),
-    reduceByIncome = reduceByIncome
+    reduceByIncome = reduceByIncome,
+    includeTransfers = includeTransfers
 )

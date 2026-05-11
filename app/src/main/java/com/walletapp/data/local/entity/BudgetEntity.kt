@@ -13,5 +13,6 @@ data class BudgetEntity(
     val recurrence: String,      // BudgetRecurrence.name
     val categoryIds: String,     // IDs separados por coma, "" = todas
     val accountIds: String,      // IDs separados por coma, "" = todas
-    val reduceByIncome: Boolean = false
+    val reduceByIncome: Boolean = false,
+    val includeTransfers: Boolean = false
 )

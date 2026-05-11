@@ -26,6 +26,10 @@ data class Budget(
     val categoryIds: List<Long> = emptyList(), // empty = todas las categorías de gasto
     val accountIds: List<Long> = emptyList(),  // empty = todas las cuentas
     val reduceByIncome: Boolean = false,
+    /** Si true, las transferencias entre cuentas dentro/fuera del presupuesto
+     *  se contabilizan como gasto (salida del scope) o ingreso (entrada al scope).
+     *  Transferencias entre dos cuentas ambas dentro o ambas fuera no afectan. */
+    val includeTransfers: Boolean = false,
     /** Gasto del período actual (calculado por el repositorio). */
     val spent: Double = 0.0,
     /** Ingreso del período actual (calculado por el repositorio, solo si reduceByIncome). */

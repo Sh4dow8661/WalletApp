@@ -55,9 +55,43 @@ class BudgetRepositoryImpl @Inject constructor(
                                 .sumOf { it.amount }
                         } else 0.0
 
+                        // Transferencias: solo cuentan si el usuario lo activó
+                        // y el presupuesto tiene cuentas específicas (si está en
+                        // "Todas las cuentas" no hay un "dentro/fuera" que comparar).
+                        var transferSpent = 0.0
+                        var transferIncome = 0.0
+                        if (baseBudget.includeTransfers && accSet.isNotEmpty()) {
+                            // Solo iteramos el lado outgoing para no contar dos veces:
+                            // cada transferencia genera dos filas (outgoing en origen +
+                            // incoming en destino), y la outgoing ya contiene origen
+                            // (accountId) y destino (transferAccountId).
+                            txList.asSequence()
+                                .filter { it.type == "TRANSFER" && it.isOutgoing }
+                                .forEach { tx ->
+                                    val sourceInBudget = tx.accountId in accSet
+                                    val destInBudget = tx.transferAccountId != null &&
+                                        tx.transferAccountId in accSet
+                                    when {
+                                        sourceInBudget && !destInBudget ->
+                                            transferSpent += tx.amount
+                                        !sourceInBudget && destInBudget ->
+                                            transferIncome += tx.amount
+                                        // ambos dentro o ambos fuera: no afecta
+                                    }
+                                }
+                        }
+
+                        val finalSpent = spent + transferSpent
+                        // Los ingresos por transferencia siguen la misma regla que
+                        // los ingresos normales: solo reducen el presupuesto si
+                        // reduceByIncome está activo.
+                        val finalIncome = if (baseBudget.reduceByIncome)
+                            income + transferIncome
+                        else income
+
                         baseBudget.copy(
-                            spent = spent,
-                            income = income,
+                            spent = finalSpent,
+                            income = finalIncome,
                             periodStart = periodStart,
                             periodEnd = periodEnd
                         )

@@ -336,6 +336,30 @@ fun AddEditBudgetScreen(
                 )
             }
 
+            // ── Contar transferencias ─────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Contar transferencias", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        if (state.selectedAccountIds.isEmpty())
+                            "Selecciona cuentas específicas arriba para que las transferencias entre cuentas dentro/fuera del presupuesto cuenten como gasto o ingreso"
+                        else
+                            "Una transferencia entre dos cuentas seleccionadas no afecta. Si sale a una cuenta fuera del presupuesto cuenta como gasto; si entra desde fuera cuenta como ingreso",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Switch(
+                    checked = state.includeTransfers,
+                    onCheckedChange = viewModel::setIncludeTransfers,
+                    enabled = state.selectedAccountIds.isNotEmpty()
+                )
+            }
+
             // ── Error ─────────────────────────────────────────────────
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
