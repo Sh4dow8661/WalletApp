@@ -20,16 +20,21 @@ interface TransactionBudgetDao {
     suspend fun getBudgetIdsForTransaction(transactionId: Long): List<Long>
 
     /**
-     * Suma del monto de las transacciones tipo EXPENSE enlazadas a un presupuesto
-     * cuya fecha cae dentro del rango (inclusive).
+     * Gasto neto de un presupuesto en el rango: los EXPENSE enlazados suman,
+     * los INCOME enlazados restan (actúan como reembolso, el presupuesto sube).
      */
     @Query(
         """
-        SELECT COALESCE(SUM(t.amount), 0)
+        SELECT COALESCE(SUM(
+            CASE
+                WHEN t.type = 'EXPENSE' THEN  t.amount
+                WHEN t.type = 'INCOME'  THEN -t.amount
+                ELSE 0
+            END
+        ), 0)
         FROM transactions t
         INNER JOIN transaction_budget_ref r ON r.transactionId = t.id
         WHERE r.budgetId = :budgetId
-          AND t.type = 'EXPENSE'
           AND t.date BETWEEN :from AND :to
         """
     )

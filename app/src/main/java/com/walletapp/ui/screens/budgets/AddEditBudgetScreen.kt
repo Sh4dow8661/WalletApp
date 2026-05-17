@@ -165,7 +165,8 @@ fun AddEditBudgetScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Al registrar un gasto podrás elegir manualmente si se le resta a este presupuesto.",
+                    "Al registrar un gasto o ingreso podrás elegir manualmente si afecta a este presupuesto. " +
+                        "Los gastos lo reducen; los ingresos lo aumentan (actúan como reembolso).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(12.dp)

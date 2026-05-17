@@ -97,8 +97,8 @@ class AddEditTransactionViewModel @Inject constructor(
     }
 
     fun setType(type: TransactionType) {
-        // Al cambiar a un tipo que no es gasto, limpiamos los enlaces de presupuesto.
-        val cleared = if (type != TransactionType.EXPENSE) emptySet() else _state.value.selectedBudgetIds
+        // Las transferencias no se enlazan a presupuestos; gastos e ingresos sí.
+        val cleared = if (type == TransactionType.TRANSFER) emptySet() else _state.value.selectedBudgetIds
         _state.value = _state.value.copy(
             type = type,
             categoryId = null,
@@ -175,10 +175,9 @@ class AddEditTransactionViewModel @Inject constructor(
                     note = s.note,
                     date = s.date
                 )
-                // Solo los gastos pueden enlazarse a presupuestos.
-                val budgetIds = if (s.type == TransactionType.EXPENSE)
-                    s.selectedBudgetIds.toList()
-                else emptyList()
+                // Gastos e ingresos pueden enlazarse a presupuestos
+                // (gasto suma al spent; ingreso lo resta y hace subir el restante).
+                val budgetIds = s.selectedBudgetIds.toList()
                 transactionRepository.upsert(tx, budgetIds = budgetIds)
             }
             _state.value = _state.value.copy(saved = true, error = null)

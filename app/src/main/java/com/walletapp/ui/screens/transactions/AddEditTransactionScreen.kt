@@ -164,11 +164,14 @@ fun AddEditTransactionScreen(
                 }
             }
 
-            // Presupuestos (solo para gastos)
-            if (state.type == TransactionType.EXPENSE && state.budgets.isNotEmpty()) {
+            // Presupuestos (gasto resta, ingreso suma; las transferencias no aplican)
+            if (state.type != TransactionType.TRANSFER && state.budgets.isNotEmpty()) {
                 Text("Aplicar a presupuestos", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Selecciona a qué presupuestos se le resta este gasto",
+                    if (state.type == TransactionType.EXPENSE)
+                        "Selecciona a qué presupuestos se le resta este gasto"
+                    else
+                        "Selecciona a qué presupuestos se le suma este ingreso (libera dinero restante)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
