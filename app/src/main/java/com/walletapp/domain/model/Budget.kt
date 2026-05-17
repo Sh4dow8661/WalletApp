@@ -23,37 +23,23 @@ data class Budget(
     /** Fin del primer período. Para NONE es el fin del presupuesto; para recurrentes solo se usa al crear. */
     val endDate: Long,
     val recurrence: BudgetRecurrence = BudgetRecurrence.NONE,
-    val categoryIds: List<Long> = emptyList(), // empty = todas las categorías de gasto
-    val accountIds: List<Long> = emptyList(),  // empty = todas las cuentas
-    val reduceByIncome: Boolean = false,
-    /** Si true, las transferencias entre cuentas dentro/fuera del presupuesto
-     *  se contabilizan como gasto (salida del scope) o ingreso (entrada al scope).
-     *  Transferencias entre dos cuentas ambas dentro o ambas fuera no afectan. */
-    val includeTransfers: Boolean = false,
-    /** Gasto del período actual (calculado por el repositorio). */
+    /** Gasto del período actual (calculado por el repositorio sumando las transacciones enlazadas). */
     val spent: Double = 0.0,
-    /** Ingreso del período actual (calculado por el repositorio, solo si reduceByIncome). */
-    val income: Double = 0.0,
     /** Inicio del período actual (calculado dinámicamente). */
     val periodStart: Long = startDate,
     /** Fin del período actual (calculado dinámicamente). */
     val periodEnd: Long = endDate
 ) {
-    /** Gasto neto: si reduceByIncome está activo, los ingresos del período se restan al gasto
-     *  (los ingresos se tratan como reembolsos que liberan presupuesto). */
-    val netSpent: Double
-        get() = if (reduceByIncome) (spent - income).coerceAtLeast(0.0) else spent
-
     val progress: Float
-        get() = if (amount > 0) (netSpent / amount).toFloat().coerceIn(0f, 1f) else 0f
+        get() = if (amount > 0) (spent / amount).toFloat().coerceIn(0f, 1f) else 0f
 
     val remaining: Double
-        get() = (amount - netSpent).coerceAtLeast(0.0)
+        get() = (amount - spent).coerceAtLeast(0.0)
 
     val overspent: Double
-        get() = (netSpent - amount).coerceAtLeast(0.0)
+        get() = (spent - amount).coerceAtLeast(0.0)
 
-    val isOverBudget: Boolean get() = netSpent > amount
+    val isOverBudget: Boolean get() = spent > amount
     val isNearLimit: Boolean get() = progress >= 0.8f && !isOverBudget
 
     /** Para presupuestos recurrentes: siempre activo desde startDate. Para NONE: dentro del rango. */
@@ -91,9 +77,9 @@ data class Budget(
     val daysElapsed: Int
         get() = (periodDurationDays - daysRemaining).coerceAtLeast(1)
 
-    /** Promedio de gasto neto por día hasta ahora. */
+    /** Promedio de gasto por día hasta ahora. */
     val averageDailySpend: Double
-        get() = netSpent / daysElapsed
+        get() = spent / daysElapsed
 }
 
 object BudgetPeriod {

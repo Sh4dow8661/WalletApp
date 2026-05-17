@@ -8,11 +8,7 @@ data class BudgetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val amount: Double,
-    val startDate: Long,         // epoch millis — inicio del período
-    val endDate: Long,           // epoch millis — fin del período (inclusive)
-    val recurrence: String,      // BudgetRecurrence.name
-    val categoryIds: String,     // IDs separados por coma, "" = todas
-    val accountIds: String,      // IDs separados por coma, "" = todas
-    val reduceByIncome: Boolean = false,
-    val includeTransfers: Boolean = false
+    val startDate: Long,         // epoch millis — inicio del primer período
+    val endDate: Long,           // epoch millis — fin (solo NONE); para recurrentes es referencia
+    val recurrence: String       // BudgetRecurrence.name
 )

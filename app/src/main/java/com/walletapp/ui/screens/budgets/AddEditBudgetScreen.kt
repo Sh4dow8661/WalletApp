@@ -27,13 +27,11 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,7 +49,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.walletapp.domain.model.BudgetRecurrence
-import com.walletapp.ui.components.CategoryIconCircle
 import com.walletapp.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -161,6 +158,20 @@ fun AddEditBudgetScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
+            // ── Info de uso ──────────────────────────────────────────
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Al registrar un gasto podrás elegir manualmente si se le resta a este presupuesto.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+
             // ── Recurrencia ───────────────────────────────────────────
             SectionLabel("Período")
             Text(
@@ -248,116 +259,6 @@ fun AddEditBudgetScreen(
                         }
                     }
                 }
-            }
-
-            HorizontalDivider()
-
-            // ── Categorías de gasto ───────────────────────────────────
-            SectionLabel("Categorías de gasto")
-            Text(
-                "Selecciona qué gastos cuentan para este presupuesto",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.selectedCategoryIds.isEmpty(),
-                    onClick = { viewModel.selectAllCategories() },
-                    label = { Text("Todas") }
-                )
-                state.expenseCategories.forEach { cat ->
-                    FilterChip(
-                        selected = cat.id in state.selectedCategoryIds,
-                        onClick = { viewModel.toggleCategory(cat.id) },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CategoryIconCircle(cat.iconName, cat.colorHex, size = 20)
-                                Spacer(Modifier.width(6.dp))
-                                Text(cat.name)
-                            }
-                        }
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // ── Cuentas ───────────────────────────────────────────────
-            SectionLabel("Cuentas")
-            Text(
-                "Selecciona de qué cuentas se rastrean los gastos",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.selectedAccountIds.isEmpty(),
-                    onClick = { viewModel.selectAllAccounts() },
-                    label = { Text("Todas") }
-                )
-                state.accounts.forEach { acc ->
-                    FilterChip(
-                        selected = acc.id in state.selectedAccountIds,
-                        onClick = { viewModel.toggleAccount(acc.id) },
-                        label = { Text(acc.name) }
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // ── Restar ingresos del gasto ─────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Restar ingresos del gasto", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Los ingresos del período cuentan como reembolsos: aumentan tu dinero restante",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.width(16.dp))
-                Switch(
-                    checked = state.reduceByIncome,
-                    onCheckedChange = viewModel::setReduceByIncome
-                )
-            }
-
-            // ── Contar transferencias ─────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Contar transferencias", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        if (state.selectedAccountIds.isEmpty())
-                            "Selecciona cuentas específicas arriba para que las transferencias entre cuentas dentro/fuera del presupuesto cuenten como gasto o ingreso"
-                        else
-                            "Una transferencia entre dos cuentas seleccionadas no afecta. Si sale a una cuenta fuera del presupuesto cuenta como gasto; si entra desde fuera cuenta como ingreso",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.width(16.dp))
-                Switch(
-                    checked = state.includeTransfers,
-                    onCheckedChange = viewModel::setIncludeTransfers,
-                    enabled = state.selectedAccountIds.isNotEmpty()
-                )
             }
 
             // ── Error ─────────────────────────────────────────────────

@@ -4,10 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.walletapp.domain.model.Account
+import com.walletapp.domain.model.Budget
 import com.walletapp.domain.model.Category
 import com.walletapp.domain.model.Transaction
 import com.walletapp.domain.model.TransactionType
 import com.walletapp.domain.repository.AccountRepository
+import com.walletapp.domain.repository.BudgetRepository
 import com.walletapp.domain.repository.CategoryRepository
 import com.walletapp.domain.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +33,10 @@ data class AddEditTransactionState(
     val date: Long = System.currentTimeMillis(),
     val categories: List<Category> = emptyList(),
     val accounts: List<Account> = emptyList(),
+    /** Presupuestos disponibles para enlazar (todos los existentes). */
+    val budgets: List<Budget> = emptyList(),
+    /** Presupuestos seleccionados para esta transacción. */
+    val selectedBudgetIds: Set<Long> = emptySet(),
     val saved: Boolean = false,
     val error: String? = null
 )
@@ -40,7 +46,8 @@ class AddEditTransactionViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val budgetRepository: BudgetRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddEditTransactionState())
@@ -51,13 +58,15 @@ class AddEditTransactionViewModel @Inject constructor(
     init {
         combine(
             categoryRepository.observeAll(),
-            accountRepository.observeAccounts()
-        ) { cats, accs -> cats to accs }
-            .onEach { (cats, accs) ->
+            accountRepository.observeAccounts(),
+            budgetRepository.observeAll()
+        ) { cats, accs, buds -> Triple(cats, accs, buds) }
+            .onEach { (cats, accs, buds) ->
                 val current = _state.value
                 _state.value = current.copy(
                     categories = cats,
                     accounts = accs,
+                    budgets = buds,
                     accountId = current.accountId ?: accs.firstOrNull()?.id
                 )
             }.launchIn(viewModelScope)
@@ -65,6 +74,8 @@ class AddEditTransactionViewModel @Inject constructor(
         if (transactionId > 0) {
             viewModelScope.launch {
                 transactionRepository.getById(transactionId)?.let { tx ->
+                    val linkedBudgetIds = transactionRepository
+                        .getBudgetIdsForTransaction(tx.id).toSet()
                     _state.value = _state.value.copy(
                         id = tx.id,
                         amount = tx.amount.toString(),
@@ -73,7 +84,8 @@ class AddEditTransactionViewModel @Inject constructor(
                         accountId = tx.accountId,
                         transferAccountId = tx.transferAccountId,
                         note = tx.note,
-                        date = tx.date
+                        date = tx.date,
+                        selectedBudgetIds = linkedBudgetIds
                     )
                 }
             }
@@ -85,7 +97,13 @@ class AddEditTransactionViewModel @Inject constructor(
     }
 
     fun setType(type: TransactionType) {
-        _state.value = _state.value.copy(type = type, categoryId = null)
+        // Al cambiar a un tipo que no es gasto, limpiamos los enlaces de presupuesto.
+        val cleared = if (type != TransactionType.EXPENSE) emptySet() else _state.value.selectedBudgetIds
+        _state.value = _state.value.copy(
+            type = type,
+            categoryId = null,
+            selectedBudgetIds = cleared
+        )
     }
 
     fun setCategory(id: Long?) { _state.value = _state.value.copy(categoryId = id) }
@@ -93,6 +111,12 @@ class AddEditTransactionViewModel @Inject constructor(
     fun setTransferAccount(id: Long?) { _state.value = _state.value.copy(transferAccountId = id) }
     fun setNote(note: String) { _state.value = _state.value.copy(note = note) }
     fun setDate(date: Long) { _state.value = _state.value.copy(date = date) }
+
+    fun toggleBudget(id: Long) {
+        val current = _state.value.selectedBudgetIds.toMutableSet()
+        if (!current.remove(id)) current.add(id)
+        _state.value = _state.value.copy(selectedBudgetIds = current)
+    }
 
     fun save() {
         val s = _state.value
@@ -117,7 +141,7 @@ class AddEditTransactionViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (s.type == TransactionType.TRANSFER) {
-                // Two linked transactions: expense in source, income in destination
+                // Las transferencias no se enlazan a presupuestos.
                 val sourceTx = Transaction(
                     id = s.id,
                     amount = amount,
@@ -129,7 +153,7 @@ class AddEditTransactionViewModel @Inject constructor(
                     date = s.date,
                     isOutgoing = true
                 )
-                transactionRepository.upsert(sourceTx)
+                transactionRepository.upsert(sourceTx, budgetIds = emptyList())
                 val destTx = Transaction(
                     amount = amount,
                     type = TransactionType.TRANSFER,
@@ -140,8 +164,7 @@ class AddEditTransactionViewModel @Inject constructor(
                     date = s.date,
                     isOutgoing = false
                 )
-                // Only insert dest if creating a new transfer
-                if (s.id == 0L) transactionRepository.upsert(destTx)
+                if (s.id == 0L) transactionRepository.upsert(destTx, budgetIds = emptyList())
             } else {
                 val tx = Transaction(
                     id = s.id,
@@ -152,7 +175,11 @@ class AddEditTransactionViewModel @Inject constructor(
                     note = s.note,
                     date = s.date
                 )
-                transactionRepository.upsert(tx)
+                // Solo los gastos pueden enlazarse a presupuestos.
+                val budgetIds = if (s.type == TransactionType.EXPENSE)
+                    s.selectedBudgetIds.toList()
+                else emptyList()
+                transactionRepository.upsert(tx, budgetIds = budgetIds)
             }
             _state.value = _state.value.copy(saved = true, error = null)
         }

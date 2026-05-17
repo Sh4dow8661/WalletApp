@@ -1,7 +1,7 @@
 package com.walletapp.data.repository
 
 import com.walletapp.data.local.dao.BudgetDao
-import com.walletapp.data.local.dao.TransactionDao
+import com.walletapp.data.local.dao.TransactionBudgetDao
 import com.walletapp.domain.model.Budget
 import com.walletapp.domain.model.BudgetPeriod
 import com.walletapp.domain.model.toDomain
@@ -17,7 +17,7 @@ import javax.inject.Inject
 
 class BudgetRepositoryImpl @Inject constructor(
     private val budgetDao: BudgetDao,
-    private val transactionDao: TransactionDao
+    private val transactionBudgetDao: TransactionBudgetDao
 ) : BudgetRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -32,66 +32,11 @@ class BudgetRepositoryImpl @Inject constructor(
                     endDate = baseBudget.endDate,
                     recurrence = baseBudget.recurrence
                 )
-
-                transactionDao.observeInRange(periodStart, periodEnd)
-                    .map { txList ->
-                        val catSet = baseBudget.categoryIds.toSet()
-                        val accSet = baseBudget.accountIds.toSet()
-
-                        val spent = txList.asSequence()
-                            .filter { tx ->
-                                tx.type == "EXPENSE" &&
-                                (catSet.isEmpty() || tx.categoryId in catSet) &&
-                                (accSet.isEmpty() || tx.accountId in accSet)
-                            }
-                            .sumOf { it.amount }
-
-                        val income = if (baseBudget.reduceByIncome) {
-                            txList.asSequence()
-                                .filter { tx ->
-                                    tx.type == "INCOME" &&
-                                    (accSet.isEmpty() || tx.accountId in accSet)
-                                }
-                                .sumOf { it.amount }
-                        } else 0.0
-
-                        // Transferencias: solo cuentan si el usuario lo activó
-                        // y el presupuesto tiene cuentas específicas (si está en
-                        // "Todas las cuentas" no hay un "dentro/fuera" que comparar).
-                        var transferSpent = 0.0
-                        var transferIncome = 0.0
-                        if (baseBudget.includeTransfers && accSet.isNotEmpty()) {
-                            // Solo iteramos el lado outgoing para no contar dos veces:
-                            // cada transferencia genera dos filas (outgoing en origen +
-                            // incoming en destino), y la outgoing ya contiene origen
-                            // (accountId) y destino (transferAccountId).
-                            txList.asSequence()
-                                .filter { it.type == "TRANSFER" && it.isOutgoing }
-                                .forEach { tx ->
-                                    val sourceInBudget = tx.accountId in accSet
-                                    val destInBudget = tx.transferAccountId != null &&
-                                        tx.transferAccountId in accSet
-                                    when {
-                                        sourceInBudget && !destInBudget ->
-                                            transferSpent += tx.amount
-                                        !sourceInBudget && destInBudget ->
-                                            transferIncome += tx.amount
-                                        // ambos dentro o ambos fuera: no afecta
-                                    }
-                                }
-                        }
-
-                        val finalSpent = spent + transferSpent
-                        // Los ingresos por transferencia siguen la misma regla que
-                        // los ingresos normales: solo reducen el presupuesto si
-                        // reduceByIncome está activo.
-                        val finalIncome = if (baseBudget.reduceByIncome)
-                            income + transferIncome
-                        else income
-
+                transactionBudgetDao
+                    .observeSpentForBudgetInRange(entity.id, periodStart, periodEnd)
+                    .map { spent ->
                         baseBudget.copy(
-                            spent = finalSpent,
-                            income = finalIncome,
+                            spent = spent,
                             periodStart = periodStart,
                             periodEnd = periodEnd
                         )

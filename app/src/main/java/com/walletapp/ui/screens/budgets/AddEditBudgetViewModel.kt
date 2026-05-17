@@ -3,22 +3,15 @@ package com.walletapp.ui.screens.budgets
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.walletapp.domain.model.Account
 import com.walletapp.domain.model.Budget
 import com.walletapp.domain.model.BudgetPeriod
 import com.walletapp.domain.model.BudgetRecurrence
-import com.walletapp.domain.model.Category
-import com.walletapp.domain.model.TransactionType
-import com.walletapp.domain.repository.AccountRepository
 import com.walletapp.domain.repository.BudgetRepository
-import com.walletapp.domain.repository.CategoryRepository
 import com.walletapp.util.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -41,12 +34,6 @@ data class AddEditBudgetState(
         cal.timeInMillis
     },
     val recurrence: BudgetRecurrence = BudgetRecurrence.MONTHLY,
-    val expenseCategories: List<Category> = emptyList(),
-    val selectedCategoryIds: Set<Long> = emptySet(),   // vacío = todas
-    val accounts: List<Account> = emptyList(),
-    val selectedAccountIds: Set<Long> = emptySet(),    // vacío = todas
-    val reduceByIncome: Boolean = false,
-    val includeTransfers: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null
 ) {
@@ -58,9 +45,7 @@ data class AddEditBudgetState(
 @HiltViewModel
 class AddEditBudgetViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val budgetRepository: BudgetRepository,
-    private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val budgetRepository: BudgetRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddEditBudgetState())
@@ -69,14 +54,6 @@ class AddEditBudgetViewModel @Inject constructor(
     private val budgetId: Long = savedStateHandle.get<Long>("id") ?: -1L
 
     init {
-        categoryRepository.observeByType(TransactionType.EXPENSE).onEach { cats ->
-            _state.value = _state.value.copy(expenseCategories = cats)
-        }.launchIn(viewModelScope)
-
-        accountRepository.observeAccounts().onEach { accs ->
-            _state.value = _state.value.copy(accounts = accs)
-        }.launchIn(viewModelScope)
-
         if (budgetId > 0) {
             viewModelScope.launch {
                 budgetRepository.getById(budgetId)?.let { b ->
@@ -86,11 +63,7 @@ class AddEditBudgetViewModel @Inject constructor(
                         amount = formatAmountInput(b.amount),
                         startDate = b.startDate,
                         endDate = b.endDate,
-                        recurrence = b.recurrence,
-                        selectedCategoryIds = b.categoryIds.toSet(),
-                        selectedAccountIds = b.accountIds.toSet(),
-                        reduceByIncome = b.reduceByIncome,
-                        includeTransfers = b.includeTransfers
+                        recurrence = b.recurrence
                     )
                 }
             }
@@ -137,23 +110,6 @@ class AddEditBudgetViewModel @Inject constructor(
         BudgetRecurrence.NONE -> DateUtils.endOfDay(start)
     }
 
-    fun toggleCategory(id: Long) {
-        val current = _state.value.selectedCategoryIds.toMutableSet()
-        if (!current.remove(id)) current.add(id)
-        _state.value = _state.value.copy(selectedCategoryIds = current)
-    }
-    fun selectAllCategories() { _state.value = _state.value.copy(selectedCategoryIds = emptySet()) }
-
-    fun toggleAccount(id: Long) {
-        val current = _state.value.selectedAccountIds.toMutableSet()
-        if (!current.remove(id)) current.add(id)
-        _state.value = _state.value.copy(selectedAccountIds = current)
-    }
-    fun selectAllAccounts() { _state.value = _state.value.copy(selectedAccountIds = emptySet()) }
-
-    fun setReduceByIncome(v: Boolean) { _state.value = _state.value.copy(reduceByIncome = v) }
-    fun setIncludeTransfers(v: Boolean) { _state.value = _state.value.copy(includeTransfers = v) }
-
     fun save() {
         val s = _state.value
         val amount = s.amount.replace(",", ".").toDoubleOrNull()
@@ -170,11 +126,7 @@ class AddEditBudgetViewModel @Inject constructor(
                 amount = amount!!,
                 startDate = s.startDate,
                 endDate = s.endDate,
-                recurrence = s.recurrence,
-                categoryIds = s.selectedCategoryIds.toList(),
-                accountIds = s.selectedAccountIds.toList(),
-                reduceByIncome = s.reduceByIncome,
-                includeTransfers = s.includeTransfers
+                recurrence = s.recurrence
             )
             budgetRepository.upsert(budget)
             _state.value = _state.value.copy(saved = true, error = null)
@@ -191,7 +143,6 @@ class AddEditBudgetViewModel @Inject constructor(
     }
 
     private fun formatAmountInput(value: Double): String {
-        // Evita "1500.0" como texto inicial; muestra entero si no hay decimales.
         return if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
     }
 }

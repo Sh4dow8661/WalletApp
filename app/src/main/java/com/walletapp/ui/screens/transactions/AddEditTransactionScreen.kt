@@ -164,6 +164,28 @@ fun AddEditTransactionScreen(
                 }
             }
 
+            // Presupuestos (solo para gastos)
+            if (state.type == TransactionType.EXPENSE && state.budgets.isNotEmpty()) {
+                Text("Aplicar a presupuestos", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Selecciona a qué presupuestos se le resta este gasto",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    state.budgets.forEach { budget ->
+                        FilterChip(
+                            selected = budget.id in state.selectedBudgetIds,
+                            onClick = { viewModel.toggleBudget(budget.id) },
+                            label = { Text(budget.name) }
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = state.note,
                 onValueChange = viewModel::setNote,

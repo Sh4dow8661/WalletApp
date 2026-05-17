@@ -211,7 +211,7 @@ private fun BudgetCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "${CurrencyFormatter.format(budget.netSpent, currency)} de ${CurrencyFormatter.format(budget.amount, currency)}",
+                    "${CurrencyFormatter.format(budget.spent, currency)} de ${CurrencyFormatter.format(budget.amount, currency)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -222,31 +222,11 @@ private fun BudgetCard(
                 )
             }
 
-            // Desglose si reduceByIncome está activo y hubo ingresos
-            if (budget.reduceByIncome && budget.income > 0) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Gasto bruto ${CurrencyFormatter.format(budget.spent, currency)} − ingresos ${CurrencyFormatter.format(budget.income, currency)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = IncomeGreen
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // ── Chips de contexto al final ───────────────────────────
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (budget.recurrence != BudgetRecurrence.NONE) {
+            if (budget.recurrence != BudgetRecurrence.NONE) {
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ContextChip(budget.recurrence.label)
                 }
-                ContextChip(
-                    if (budget.categoryIds.isEmpty()) "Todos los gastos"
-                    else "${budget.categoryIds.size} categoría${if (budget.categoryIds.size > 1) "s" else ""}"
-                )
-                ContextChip(
-                    if (budget.accountIds.isEmpty()) "Todas las cuentas"
-                    else "${budget.accountIds.size} cuenta${if (budget.accountIds.size > 1) "s" else ""}"
-                )
             }
         }
     }
