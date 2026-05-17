@@ -48,6 +48,13 @@ interface TransactionDao {
     fun observeAccountBalanceDelta(accountId: Long): Flow<Double>
 
     @Query("""
+        SELECT COALESCE(SUM(CASE WHEN type='INCOME' OR (type='TRANSFER' AND isOutgoing=0) THEN amount ELSE 0 END),0)
+             - COALESCE(SUM(CASE WHEN type='EXPENSE' OR (type='TRANSFER' AND isOutgoing=1) THEN amount ELSE 0 END),0)
+        FROM transactions WHERE accountId = :accountId
+    """)
+    suspend fun getAccountBalanceDelta(accountId: Long): Double
+
+    @Query("""
         SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amount ELSE 0 END),0) as income
         FROM transactions WHERE date BETWEEN :from AND :to
     """)

@@ -89,9 +89,17 @@ fun AddEditAccountScreen(
                 singleLine = true
             )
             OutlinedTextField(
-                value = state.initialBalance,
+                value = state.balance,
                 onValueChange = { v -> if (v.isEmpty() || v.toDoubleOrNull() != null || v == "-") viewModel.setBalance(v) },
-                label = { Text("Balance inicial") },
+                label = { Text(if (state.id == 0L) "Balance inicial" else "Balance actual") },
+                supportingText = {
+                    if (state.id != 0L) {
+                        Text(
+                            "Al cambiarlo se ajusta para que coincida exacto con lo que pongas (útil para cuadrar la cuenta)",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )

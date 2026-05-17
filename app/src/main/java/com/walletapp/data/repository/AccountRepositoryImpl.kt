@@ -46,7 +46,10 @@ class AccountRepositoryImpl @Inject constructor(
         }
 
     override suspend fun getAccountById(id: Long): Account? =
-        accountDao.getById(id)?.toDomain()
+        accountDao.getById(id)?.let { entity ->
+            val delta = transactionDao.getAccountBalanceDelta(entity.id)
+            entity.toDomain(currentBalance = entity.initialBalance + delta)
+        }
 
     override suspend fun upsert(account: Account): Long {
         return if (account.id == 0L) accountDao.insert(account.toEntity())
