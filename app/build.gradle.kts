@@ -98,4 +98,10 @@ dependencies {
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
+
+    // ML Kit Text Recognition v2 (bundled, on-device OCR - NO network, NO Play Services)
+    implementation(libs.mlkit.text.recognition)
+
+    // Tests
+    testImplementation(libs.junit)
 }
