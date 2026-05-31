@@ -30,6 +30,7 @@ sealed class Screen(val route: String) {
     }
     data object Accounts : Screen("accounts")
     data object Categories : Screen("categories")
+    data object ScanReceipt : Screen("scan-receipt")
 }
 
 data class BottomNavItem(

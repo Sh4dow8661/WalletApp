@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.walletapp.data.preferences.SettingsDataStore
+import com.walletapp.domain.model.Account
 import com.walletapp.domain.repository.AccountRepository
 import com.walletapp.domain.repository.CategoryRepository
 import com.walletapp.domain.repository.TransactionRepository
@@ -28,6 +29,9 @@ import javax.inject.Inject
 data class SettingsState(
     val currency: String = "USD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accounts: List<Account> = emptyList(),
+    /** Cuenta por defecto para escaneos; null = automático. */
+    val defaultScanAccountId: Long? = null,
     val exportMessage: String? = null
 )
 
@@ -47,8 +51,18 @@ class SettingsViewModel @Inject constructor(
     val exportedFile: SharedFlow<File> = _exportedFile.asSharedFlow()
 
     init {
-        combine(settings.currency, settings.themeMode) { currency, theme ->
-            SettingsState(currency = currency, themeMode = theme)
+        combine(
+            settings.currency,
+            settings.themeMode,
+            accountRepository.observeAccounts(),
+            settings.defaultScanAccountId
+        ) { currency, theme, accounts, scanAccountId ->
+            SettingsState(
+                currency = currency,
+                themeMode = theme,
+                accounts = accounts,
+                defaultScanAccountId = scanAccountId
+            )
         }.onEach { _state.value = it.copy(exportMessage = _state.value.exportMessage) }
             .launchIn(viewModelScope)
     }
@@ -59,6 +73,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setTheme(mode: ThemeMode) {
         viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    fun setDefaultScanAccount(id: Long?) {
+        viewModelScope.launch { settings.setDefaultScanAccountId(id) }
     }
 
     fun exportCsv() {
