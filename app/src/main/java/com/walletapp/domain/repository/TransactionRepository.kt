@@ -21,6 +21,9 @@ interface TransactionRepository {
     /** Devuelve los IDs de presupuesto a los que está enlazada esta transacción. */
     suspend fun getBudgetIdsForTransaction(transactionId: Long): List<Long>
 
+    /** Cuenta del último gasto registrado, o null si aún no hay gastos. */
+    suspend fun getLastUsedExpenseAccountId(): Long?
+
     fun observeIncomeInRange(from: Long, to: Long): Flow<Double>
     fun observeExpenseInRange(from: Long, to: Long): Flow<Double>
     fun observeExpenseByCategoryInRange(from: Long, to: Long): Flow<List<CategorySum>>

@@ -31,6 +31,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: Long): TransactionEntity?
 
+    /** Cuenta del último gasto registrado (para sugerir cuenta al escanear). */
+    @Query("SELECT accountId FROM transactions WHERE type = 'EXPENSE' ORDER BY date DESC, id DESC LIMIT 1")
+    suspend fun lastExpenseAccountId(): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(transaction: TransactionEntity): Long
 

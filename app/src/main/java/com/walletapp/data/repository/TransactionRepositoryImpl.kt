@@ -53,6 +53,9 @@ class TransactionRepositoryImpl @Inject constructor(
     override suspend fun getBudgetIdsForTransaction(transactionId: Long): List<Long> =
         transactionBudgetDao.getBudgetIdsForTransaction(transactionId)
 
+    override suspend fun getLastUsedExpenseAccountId(): Long? =
+        transactionDao.lastExpenseAccountId()
+
     override fun observeIncomeInRange(from: Long, to: Long): Flow<Double> =
         transactionDao.observeIncomeInRange(from, to)
 
