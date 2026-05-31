@@ -46,8 +46,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                // Sin keystore de release: firma con la debug key para producir un APK
+                // instalable (solo para pruebas/compartir, NO apto para Play Store).
+                signingConfigs.getByName("debug")
             }
         }
     }
