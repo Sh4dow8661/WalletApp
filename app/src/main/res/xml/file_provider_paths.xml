@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-files-path name="exports" path="exports/" />
+    <!-- Foto temporal del recibo a escanear (se guarda en cacheDir/receipts). -->
+    <cache-path name="receipts" path="receipts/" />
 </paths>

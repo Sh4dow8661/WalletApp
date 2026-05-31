@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- NO INTERNET PERMISSION - 100% offline app -->
+
+    <!-- Cámara para escanear recibos (OCR on-device con ML Kit bundled). La galería
+         usa el Photo Picker del sistema y no requiere permisos de almacenamiento. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!-- Garantía offline: dependencias transitivas de ML Kit (telemetría de
+         datatransport/play-services) declaran INTERNET y ACCESS_NETWORK_STATE.
+         Las eliminamos del manifest fusionado: el OCR bundled corre 100% on-device
+         y la app no hace ninguna llamada de red. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <application
         android:name=".WalletApplication"

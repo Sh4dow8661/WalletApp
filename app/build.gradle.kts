@@ -23,8 +23,8 @@ android {
         applicationId = "com.walletapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.9"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -46,8 +46,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                // Sin keystore de release: firma con la debug key para producir un APK
+                // instalable (solo para pruebas/compartir, NO apto para Play Store).
+                signingConfigs.getByName("debug")
             }
         }
     }
@@ -98,4 +102,10 @@ dependencies {
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
+
+    // ML Kit Text Recognition v2 (bundled, on-device OCR - NO network, NO Play Services)
+    implementation(libs.mlkit.text.recognition)
+
+    // Tests
+    testImplementation(libs.junit)
 }

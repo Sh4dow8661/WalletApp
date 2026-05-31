@@ -25,6 +25,7 @@ import com.walletapp.ui.screens.calendar.CalendarScreen
 import com.walletapp.ui.screens.categories.AddEditCategoryScreen
 import com.walletapp.ui.screens.categories.CategoriesScreen
 import com.walletapp.ui.screens.dashboard.DashboardScreen
+import com.walletapp.ui.screens.scanreceipt.ScanReceiptScreen
 import com.walletapp.ui.screens.settings.SettingsScreen
 import com.walletapp.ui.screens.statistics.StatisticsScreen
 import com.walletapp.ui.screens.transactions.AddEditTransactionScreen
@@ -92,7 +93,8 @@ fun WalletNavHost() {
                 TransactionsScreen(
                     onOpenTransaction = { id ->
                         navController.navigate(Screen.AddEditTransaction.create(id))
-                    }
+                    },
+                    onScanReceipt = { navController.navigate(Screen.ScanReceipt.route) }
                 )
             }
             composable(Screen.Budgets.route) {
@@ -120,6 +122,18 @@ fun WalletNavHost() {
                 })
             ) {
                 AddEditTransactionScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.ScanReceipt.route) {
+                ScanReceiptScreen(
+                    onBack = { navController.popBackStack() },
+                    onManualEntry = {
+                        // Cae al alta manual normal y saca el escaneo de la pila.
+                        navController.navigate(Screen.AddEditTransaction.create()) {
+                            popUpTo(Screen.ScanReceipt.route) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             composable(

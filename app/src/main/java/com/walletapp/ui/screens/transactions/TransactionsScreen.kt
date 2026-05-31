@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import com.walletapp.ui.screens.dashboard.TransactionRow
 @Composable
 fun TransactionsScreen(
     onOpenTransaction: (Long) -> Unit,
+    onScanReceipt: () -> Unit,
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -57,6 +59,14 @@ fun TransactionsScreen(
                         IconButton(onClick = viewModel::nextMonth) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Siguiente")
                         }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onScanReceipt) {
+                        Icon(
+                            Icons.Default.DocumentScanner,
+                            contentDescription = "Escanear recibo"
+                        )
                     }
                 }
             )

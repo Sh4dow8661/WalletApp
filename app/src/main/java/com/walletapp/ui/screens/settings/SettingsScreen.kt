@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CurrencyExchange
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.walletapp.domain.model.Account
 import com.walletapp.ui.theme.ThemeMode
 import com.walletapp.util.CurrencyFormatter
 
@@ -95,6 +97,11 @@ fun SettingsScreen(
             ThemeSetting(
                 current = state.themeMode,
                 onSelect = viewModel::setTheme
+            )
+            ScanAccountSetting(
+                accounts = state.accounts,
+                selectedId = state.defaultScanAccountId,
+                onSelect = viewModel::setDefaultScanAccount
             )
             Card(
                 modifier = Modifier.fillMaxWidth().clickable { viewModel.exportCsv() },
@@ -205,6 +212,55 @@ private fun CurrencySetting(currency: String, onSelect: (String) -> Unit) {
                         DropdownMenuItem(
                             text = { Text(code) },
                             onClick = { onSelect(code); expanded = false }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScanAccountSetting(
+    accounts: List<Account>,
+    selectedId: Long?,
+    onSelect: (Long?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedName = accounts.firstOrNull { it.id == selectedId }?.name ?: "Automático"
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.DocumentScanner,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Cuenta para escaneos", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    selectedName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box {
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Automático") },
+                        onClick = { onSelect(null); expanded = false }
+                    )
+                    accounts.forEach { acc ->
+                        DropdownMenuItem(
+                            text = { Text(acc.name) },
+                            onClick = { onSelect(acc.id); expanded = false }
                         )
                     }
                 }
