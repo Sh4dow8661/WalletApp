@@ -51,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,7 +91,10 @@ fun ScanReceiptScreen(
         onDispose { ReceiptImageStore.clearCache(context) }
     }
 
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    // rememberSaveable: la app de cámara puede recrear esta Activity (memoria baja /
+    // "no mantener actividades"); con remember perderíamos el Uri y la foto tomada se
+    // descartaría en silencio. Uri es Parcelable, así que sobrevive al savedState.
+    var pendingCameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var cameraDenied by remember { mutableStateOf(false) }
 
     val takePicture = rememberLauncherForActivityResult(

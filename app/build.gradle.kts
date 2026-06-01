@@ -23,8 +23,8 @@ android {
         applicationId = "com.walletapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.9"
+        versionCode = 4
+        versionName = "1.9.1"
         vectorDrawables { useSupportLibrary = true }
     }
 

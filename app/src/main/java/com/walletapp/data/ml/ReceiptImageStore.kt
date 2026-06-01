@@ -46,8 +46,13 @@ object ReceiptImageStore {
         val resolver = context.contentResolver
 
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: return null
+        // OJO: con inJustDecodeBounds=true, decodeStream SIEMPRE devuelve null (solo
+        // rellena outWidth/outHeight). Por eso el null se evalúa sobre openInputStream
+        // —si no, loadBitmap devolvería null para CUALQUIER imagen válida y el OCR
+        // fallaría siempre con "no se pudo leer la imagen".
+        (resolver.openInputStream(uri) ?: return null).use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
         var sample = 1
