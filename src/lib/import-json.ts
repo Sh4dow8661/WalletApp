@@ -102,7 +102,13 @@ export interface ExportAndroid {
   enlaces: Json[];
 }
 
-const SECCIONES = ["cuentas", "categorias", "transacciones", "presupuestos", "enlaces"] as const;
+const SECCIONES = [
+  "cuentas",
+  "categorias",
+  "transacciones",
+  "presupuestos",
+  "enlaces",
+] as const;
 
 /** Comprueba que el archivo es lo que dice ser, antes de tocar nada. */
 export function parseExportAndroid(contenido: string): ExportAndroid {
@@ -341,7 +347,8 @@ export function transformarExport(
         type: unaDe(texto(fila, "type"), TRANSACTION_TYPES, "EXPENSE"),
         categoria,
         cuenta,
-        cuentaDestino: cuentaDestino !== null && idCuenta.has(cuentaDestino) ? cuentaDestino : null,
+        cuentaDestino:
+          cuentaDestino !== null && idCuenta.has(cuentaDestino) ? cuentaDestino : null,
         note: texto(fila, "note"),
         date: numero(fila, "date", ahora),
         isOutgoing: booleano(fila, "isOutgoing"),
@@ -350,7 +357,9 @@ export function transformarExport(
   });
 
   const { grupoPorTransaccion, emparejadas } = agruparTransferencias(
-    leidas.filter((t): t is (typeof leidas)[number] & PataTransferencia => t.type === "TRANSFER"),
+    leidas.filter(
+      (t): t is (typeof leidas)[number] & PataTransferencia => t.type === "TRANSFER",
+    ),
     ahora,
   );
 
@@ -405,7 +414,9 @@ export function transformarExport(
     );
   }
   if (descartadas > 0) {
-    avisos.push(`${descartadas} fila(s) del archivo estaban incompletas y se han saltado.`);
+    avisos.push(
+      `${descartadas} fila(s) del archivo estaban incompletas y se han saltado.`,
+    );
   }
 
   return {

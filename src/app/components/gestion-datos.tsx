@@ -24,9 +24,10 @@ export function GestionDatos() {
   const inputArchivo = useRef<HTMLInputElement>(null);
 
   const [descargando, setDescargando] = useState<"json" | "csv" | null>(null);
-  const [pendiente, setPendiente] = useState<{ nombre: string; contenido: string } | null>(
-    null,
-  );
+  const [pendiente, setPendiente] = useState<{
+    nombre: string;
+    contenido: string;
+  } | null>(null);
   const [importando, setImportando] = useState(false);
   const [resumen, setResumen] = useState<ResumenImportacion | null>(null);
   const [error, setError] = useState<string | null>(null);

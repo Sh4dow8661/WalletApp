@@ -18,7 +18,11 @@ import {
   parseExportAndroid,
   transformarExport,
 } from "@/lib/import-json.ts";
-import { CATEGORY_PALETTE, DEFAULT_ACCOUNT_ICON, FALLBACK_ICON } from "@/shared/constants.ts";
+import {
+  CATEGORY_PALETTE,
+  DEFAULT_ACCOUNT_ICON,
+  FALLBACK_ICON,
+} from "@/shared/constants.ts";
 
 import type { AppEnv } from "../context.ts";
 import { type Statement, runBatch } from "../db/batch.ts";
@@ -266,10 +270,13 @@ export function transformarCsv(rows: readonly CsvRow[], ahora: number): DatosImp
         id: uuidv7(ahora),
         amount: row.amount,
         type: row.type,
-        categoryId: row.type === "TRANSFER" ? null : (idCategoria.get(row.categoryName) ?? null),
+        categoryId:
+          row.type === "TRANSFER" ? null : (idCategoria.get(row.categoryName) ?? null),
         accountId,
         transferAccountId:
-          row.type === "TRANSFER" ? (idCuenta.get(row.transferAccountName) ?? null) : null,
+          row.type === "TRANSFER"
+            ? (idCuenta.get(row.transferAccountName) ?? null)
+            : null,
         transferGroupId: emparejada?.grupo ?? null,
         note: row.note,
         date: row.date,
@@ -335,7 +342,10 @@ app.get("/json", async (c) => {
       .select()
       .from(transactions)
       .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt))),
-    db.select().from(budgets).where(and(eq(budgets.userId, userId), isNull(budgets.deletedAt))),
+    db
+      .select()
+      .from(budgets)
+      .where(and(eq(budgets.userId, userId), isNull(budgets.deletedAt))),
     db.select().from(userSettings).where(eq(userSettings.userId, userId)),
   ]);
 
@@ -398,7 +408,8 @@ app.get("/json", async (c) => {
       type: t.type,
       categoryId: t.categoryId === null ? null : numerar(t.categoryId),
       accountId: numerar(t.accountId),
-      transferAccountId: t.transferAccountId === null ? null : numerar(t.transferAccountId),
+      transferAccountId:
+        t.transferAccountId === null ? null : numerar(t.transferAccountId),
       note: t.note,
       date: t.date,
       isOutgoing: t.isOutgoing,
@@ -443,10 +454,13 @@ app.get("/csv", async (c) => {
         date: t.date,
         type: t.type,
         amount: t.amount,
-        categoryName: t.categoryId === null ? "" : (nombreCategoria.get(t.categoryId) ?? ""),
+        categoryName:
+          t.categoryId === null ? "" : (nombreCategoria.get(t.categoryId) ?? ""),
         accountName: nombreCuenta.get(t.accountId) ?? "",
         transferAccountName:
-          t.transferAccountId === null ? "" : (nombreCuenta.get(t.transferAccountId) ?? ""),
+          t.transferAccountId === null
+            ? ""
+            : (nombreCuenta.get(t.transferAccountId) ?? ""),
         note: t.note,
       })),
     c.get("timeZone"),

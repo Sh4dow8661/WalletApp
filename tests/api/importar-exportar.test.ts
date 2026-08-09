@@ -21,7 +21,8 @@ const categorias = async () =>
   cliente.json<Category[]>(await cliente.get("/api/categories"));
 const movimientos = async () =>
   cliente.json<Transaction[]>(await cliente.get("/api/transactions"));
-const presupuestos = async () => cliente.json<Budget[]>(await cliente.get("/api/budgets"));
+const presupuestos = async () =>
+  cliente.json<Budget[]>(await cliente.get("/api/budgets"));
 
 const importarJson = (contenido: string) =>
   cliente.postRaw("/api/data/json", contenido, "application/json");
@@ -191,7 +192,9 @@ describe("importación de JSON", () => {
 
   it("los saldos cuadran después de importar", async () => {
     const { efectivo } = await sembrarDatos();
-    const saldoAntes = (await cuentas()).find((c) => c.id === efectivo.id)!.currentBalance;
+    const saldoAntes = (await cuentas()).find(
+      (c) => c.id === efectivo.id,
+    )!.currentBalance;
 
     const copia = await (await cliente.get("/api/data/json")).text();
     await esperarEstado(await importarJson(copia), 200);

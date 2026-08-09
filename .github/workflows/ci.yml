@@ -1,0 +1,112 @@
+name: CI
+
+# Comprobaciones en cada push y en cada PR.
+#
+# Aquí NO se despliega. Un deploy automático necesitaría guardar un token de API
+# de Cloudflare con permiso de escritura sobre Workers y D1 en los secretos del
+# repositorio, y esa decisión es del dueño de la cuenta, no de la CI. El
+# despliegue se hace a mano con `pnpm deploy` (ver docs/DEPLOY.md).
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# Un push nuevo sobre la misma rama cancela la ejecución anterior: no tiene
+# sentido gastar minutos en verificar un commit ya superado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Tipos, lint, formato, tests y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # `workerd` y `esbuild` necesitan su postinstall (ver pnpm-workspace.yaml).
+      # Sin workerd no hay runtime de Workers y los tests del API no arrancan.
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Comprobar tipos
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Formato
+        run: pnpm format:check
+
+      # Unitarios (dominio + UI) y de integración del API dentro de workerd real
+      # contra la D1 local, con las migraciones aplicadas.
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  e2e:
+    name: End-to-end y PWA
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Los e2e levantan la app de verdad, que necesita sus variables de entorno.
+      # El secreto es de usar y tirar: solo firma sesiones dentro de un runtime
+      # efímero que se destruye al terminar el job.
+      - name: Preparar variables de desarrollo
+        run: |
+          {
+            echo "BETTER_AUTH_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
+            echo 'ALLOW_SIGNUP="true"'
+          } > .dev.vars
+
+      - name: Instalar Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Adaptación en los cinco tamaños de §10, contra `vite dev`.
+      - name: Tests adaptativos
+        run: pnpm test:e2e
+
+      # PWA: contra el build servido, porque en `vite dev` el service worker está
+      # desactivado a propósito para que funcione el HMR.
+      - name: Tests de PWA
+        run: pnpm test:e2e:pwa
+
+      - name: Guardar el informe si algo falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

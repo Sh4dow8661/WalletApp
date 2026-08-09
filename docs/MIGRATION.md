@@ -104,12 +104,12 @@ completa o no entra.
 Al terminar aparece un resumen con lo que entró. Repásalo contra la app Android,
 que sigue instalada:
 
-| Comprobar | Dónde |
-|---|---|
-| Balance total | pantalla de Inicio, mismo número en las dos |
-| Saldo de cada cuenta | Ajustes → Cuentas |
-| Número de movimientos | lista de Transacciones |
-| Presupuestos y lo gastado | pantalla de Presupuestos |
+| Comprobar                 | Dónde                                       |
+| ------------------------- | ------------------------------------------- |
+| Balance total             | pantalla de Inicio, mismo número en las dos |
+| Saldo de cada cuenta      | Ajustes → Cuentas                           |
+| Número de movimientos     | lista de Transacciones                      |
+| Presupuestos y lo gastado | pantalla de Presupuestos                    |
 
 El resumen puede incluir avisos. El más probable:
 
@@ -171,15 +171,15 @@ La PWA también acepta el CSV que ya generaba la app Android, por si el APK
 nuevo no se pudiera instalar. **Es notablemente peor** y solo tiene sentido como
 último recurso:
 
-| | JSON | CSV |
-|---|---|---|
-| Movimientos | sí | sí |
-| Cuentas | con balance inicial, color e icono | solo el nombre |
-| Categorías | con tipo, color e icono | nombre y tipo |
-| Presupuestos | sí | **no** |
-| Enlaces con presupuestos | sí | **no** |
-| Dirección de las transferencias | sí | **se supone** |
-| «Contar en el total» | sí | **no** |
+|                                 | JSON                               | CSV            |
+| ------------------------------- | ---------------------------------- | -------------- |
+| Movimientos                     | sí                                 | sí             |
+| Cuentas                         | con balance inicial, color e icono | solo el nombre |
+| Categorías                      | con tipo, color e icono            | nombre y tipo  |
+| Presupuestos                    | sí                                 | **no**         |
+| Enlaces con presupuestos        | sí                                 | **no**         |
+| Dirección de las transferencias | sí                                 | **se supone**  |
+| «Contar en el total»            | sí                                 | **no**         |
 
 Al importar un CSV, las transferencias se emparejan por fecha, importe y cuentas
 cruzadas, y **se toma como saliente la primera de cada par en el archivo**. Es

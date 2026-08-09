@@ -851,3 +851,60 @@ mano, de modo que añadir una columna mañana ajuste el lote solo.
 - Se comprueba también que una transferencia importada **sigue editándose como
   una sola cosa** (las dos patas a la vez), que un archivo inválido se rechaza
   **sin tocar los datos que ya había**, y que 220 movimientos entran de una vez.
+
+## 13. Fase 8 — despliegue
+
+### Lo que está en producción
+
+**https://walletapp.imanolhidalgo08.workers.dev**
+
+Un solo Worker (`walletapp`) sirve la SPA y la API, con la D1 `walletapp-db`
+detrás. Todo dentro del plan gratuito.
+
+Comprobado tras el despliegue: `/api/health` responde desde
+`Cloudflare-Workers`, `/` y las rutas internas devuelven el shell (el
+`not_found_handling: "single-page-application"` funciona), el manifest, el
+service worker, los iconos y las capturas se sirven, y `/api/accounts` **sin
+sesión devuelve 401**. El guard de §11 sigue en pie en producción, no solo en los
+tests.
+
+> En los primeros segundos tras el `deploy`, `/api/health` devolvió un
+> `error code: 1042` y `/sw.js` un 404. Era propagación: al repetir, ambos
+> correctos. Conviene no dar por rota una versión recién subida sin reintentar.
+
+### El secreto
+
+`BETTER_AUTH_SECRET` se generó con `crypto.randomBytes(48)` y se envió por
+tubería directamente a `wrangler secret put`, sin pasar por la pantalla ni por
+ningún archivo. Vive solo en Cloudflare. El de desarrollo es otro distinto, en
+`.dev.vars`, que no se versiona.
+
+### La CI verifica, no despliega
+
+`.github/workflows/ci.yml` corre tipos, lint, formato, los 289 tests, el build y
+los 17 e2e (con Chromium instalado en el runner).
+
+**No despliega a propósito.** Hacerlo obligaría a guardar en los secretos del
+repositorio un token de API de Cloudflare con escritura sobre Workers y D1, y esa
+decisión es del dueño de la cuenta. El despliegue se hace con `pnpm deploy`, que
+usa la sesión OAuth de `wrangler login` y no deja ningún token en disco del
+repositorio. En `docs/DEPLOY.md` quedan escritos los tres pasos por si algún día
+se quiere automatizar.
+
+Los e2e necesitan la app levantada, así que el workflow escribe un `.dev.vars`
+con un secreto aleatorio de usar y tirar: solo firma sesiones dentro de un
+runtime que se destruye al acabar el job.
+
+### Pendiente, y depende de ti
+
+**`ALLOW_SIGNUP` sigue en `"true"`.** La URL es pública, así que ahora mismo
+cualquiera que dé con ella puede registrarse. No vería datos ajenos —el servidor
+filtra por la sesión en cada petición— pero no hay razón para dejarlo abierto.
+
+No se puede cerrar antes porque **la cuenta la tiene que crear el usuario**: es
+quien elige la contraseña. El orden es: registrarse → poner `"false"` en
+`wrangler.jsonc` → `pnpm deploy`.
+
+**Lighthouse sigue sin poder ejecutarse en esta máquina** (`EPERM` al limpiar su
+perfil temporal). Ahora que hay una URL pública se puede medir desde PageSpeed
+Insights, sin depender del Chrome local.
