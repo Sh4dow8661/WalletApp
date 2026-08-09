@@ -25,6 +25,20 @@
     "enabled": true,
   },
 
-  // El binding de D1 se añade en la Fase 2, cuando exista walletapp-db.
-  // Los secretos (BETTER_AUTH_SECRET) van con `wrangler secret put`, nunca aquí.
+  // D1 es la fuente de verdad. El database_id no es un secreto (§16); los
+  // secretos (BETTER_AUTH_SECRET) van con `wrangler secret put`, nunca aquí.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "walletapp-db",
+      "database_id": "824a3d16-d699-4556-bad6-b9d100604172",
+      "migrations_dir": "migrations",
+    },
+  ],
+
+  "vars": {
+    // Registro público. En producción se cierra con
+    // `wrangler secret put ALLOW_SIGNUP` o cambiando esto a "false" (§11).
+    "ALLOW_SIGNUP": "true",
+  },
 }

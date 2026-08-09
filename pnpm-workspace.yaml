@@ -4,6 +4,12 @@
 # - workerd: el runtime real de Cloudflare Workers. Sin su postinstall no hay
 #   `vite dev` con bindings ni D1 local.
 # - esbuild: descarga su binario nativo.
+#
+# Los otros dos entran arrastrados por @better-auth/cli, que soporta varios
+# adaptadores. Aquí solo se usa Drizzle sobre D1, así que no hace falta compilar
+# el binario nativo de better-sqlite3 ni generar el cliente de Prisma.
 allowBuilds:
+  "@prisma/client": false
+  better-sqlite3: false
   esbuild: true
   workerd: true

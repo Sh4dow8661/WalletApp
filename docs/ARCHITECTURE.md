@@ -381,3 +381,71 @@ se resuelven relativos al propio tsconfig, así que `baseUrl` no hace falta en n
     los tokens de Tailwind resuelven a los colores exactos de `Color.kt`
     (`--color-primary` → `rgb(14,159,110)` = `#0E9F6E`, fondo `rgb(250,250,250)` = `#FAFAFA`);
     sin scroll horizontal.
+
+---
+
+## 7. Fase 2 — datos y backend
+
+### Lo que quedó montado
+
+- **D1 `walletapp-db`** creada (`824a3d16-…`, región ENAM), con el esquema de §7 aplicado por
+  migraciones (`migrations/0001_esquema_inicial.sql`) tanto en local como en remoto.
+- **Better Auth** con email + contraseña, sesiones en D1, cookies HttpOnly/Secure/SameSite=Lax,
+  rate limiting y `ALLOW_SIGNUP` para cerrar el registro. Las tablas de auth las generó su CLI
+  (`pnpm exec better-auth generate`), como pide §7.
+- **Siembra automática al registrarse**: las 3 cuentas y 14 categorías de `DefaultData.kt` más la
+  fila de ajustes, en un único batch atómico.
+- **CRUD completo** en Hono para cuentas, categorías, transacciones, presupuestos y ajustes, más
+  los agregados (`/api/stats/dashboard`, `/by-category`, `/trend`, `/daily`).
+- **171 tests en verde**, de los cuales 60 son de integración corriendo en **workerd real contra
+  D1 real** con las migraciones de producción aplicadas. Sin mocks de base de datos.
+
+### Decisiones de implementación
+
+**Borrado lógico y cascadas (riesgo R5, resuelto).** `deleted_at` es la vía normal y las cascadas
+se aplican en la capa de aplicación dentro del mismo batch:
+
+- Borrar una **cuenta** marca también sus transacciones, incluidas aquellas en las que era la
+  cuenta _destino_ de una transferencia. Sin eso, la pata contraria seguiría sumando a un balance.
+- Borrar una **categoría** deja las transacciones vivas y sin categoría (`SET NULL`), no las borra.
+- Borrar un **presupuesto** sí elimina físicamente sus filas de enlace: son una tabla de unión sin
+  valor histórico.
+
+**El `spent` y el período se calculan en el servidor.** La regla de anclaje mensual con recorte de
+día no se expresa razonablemente en SQL, así que `currentPeriod` corre en JS y el reparto de los
+enlaces se hace en memoria. Devolver los derivados ya calculados evita que cliente y servidor
+puedan discrepar en los números.
+
+**Los agregados por día y por mes se agrupan en JS, no en SQL.** SQLite no conoce zonas horarias:
+agrupar en SQL obligaría a usar días UTC, que es exactamente el bug de §8.6. El servidor lee
+`user_settings.time_zone` en cada petición y agrupa con `dayKey`.
+
+### Dos bugs propios que los tests cazaron
+
+**1. `addMonths` devolvía el mes equivocado.** La primera versión usaba `addMonths` de date-fns
+sobre un `Date` construido con `Date.UTC`. date-fns opera en la hora local del proceso, así que en
+cualquier zona al oeste de Greenwich el resultado se iba un mes. Lo detectó el barrido exhaustivo
+de períodos (730 días × 6 anclas). Ahora es aritmética pura sobre el contador de meses.
+
+**2. Una subconsulta correlacionada devolvía 0 en silencio.** Interpolar `${walletAccounts.id}`
+dentro de un `sql` que ya tiene su propio `FROM` hacía que Drizzle lo renderizara como `"id"`, sin
+calificar la tabla:
+
+```sql
+FROM transactions t WHERE t.account_id = "id"   -- ¡compara con transactions.id!
+```
+
+En SQLite eso no es un error — `transactions` también tiene una columna `id` — así que la
+comparación nunca casaba y el balance salía **0 sin avisar**. El síntoma era que "editar el balance
+actual" (§8.3) no cuadraba la cuenta. Ahora la referencia se construye con `sql.identifier` y el
+nombre real de la tabla.
+
+Merece la pena subrayarlo: los dos fallos eran silenciosos y daban números plausibles. Ninguno
+habría salido a la luz sin tests que comprobaran valores concretos.
+
+### Pendiente para la Fase 8
+
+- `wrangler secret put BETTER_AUTH_SECRET` en producción: requiere que el Worker ya esté
+  desplegado. En local va por `.dev.vars` (no versionado; hay un `.dev.vars.example`).
+- El bundle del Worker está en **273 kB gzip**, bastante por debajo del límite de 3 MB del plan
+  gratuito, pero conviene vigilarlo al añadir dependencias.

@@ -4,6 +4,8 @@ dist/
 .wrangler/
 .dev.vars
 .dev.vars.*
+# ...salvo la plantilla, que sí documenta qué variables hacen falta.
+!.dev.vars.example
 *.local
 .vite/
 coverage/

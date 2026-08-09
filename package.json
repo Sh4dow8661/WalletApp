@@ -47,7 +47,9 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
     "@cloudflare/vite-plugin": "^1.51.1",
+    "@cloudflare/vitest-pool-workers": "^0.20.3",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.0",

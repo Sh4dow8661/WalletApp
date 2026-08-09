@@ -42,6 +42,10 @@ export default defineConfig({
           setupFiles: ["./tests/setup-ui.ts"],
         },
       },
+      // Integración del API: corre en workerd real contra la D1 local, con su
+      // propia configuración porque usa el pool de Cloudflare y no un entorno
+      // de Vitest.
+      "./tests/api/vitest.config.ts",
     ],
     coverage: {
       provider: "v8",
