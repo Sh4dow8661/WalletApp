@@ -33,8 +33,7 @@ Ver riesgo R1.
 |                                              |                                                                                                                                                 |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ruta local                                   | **`C:\dev\WalletApp`** (movido en la Fase 1; el original en `G:\My Drive\Personal\[04] Claude\Proyectos\WalletApp\WalletApp` queda de respaldo) |
-| Remoto real                                  | `https://github.com/Sh4dow8661/WalletApp_Claude.git`                                                                                            |
-| Remoto en el prompt (§1)                     | `https://github.com/Sh4dow8661/WalletApp`                                                                                                       |
+| Remoto                                       | `https://github.com/Sh4dow8661/WalletApp.git` — **público**. `WalletApp_Claude` es un nombre antiguo que GitHub redirige aquí (ver D4)          |
 | Ramas remotas                                | `main`, `claude/festive-wozniak-eZpTm`, `__tmp_probe__`                                                                                         |
 | Rama `claude/app-progressive-web-app-2zwq2z` | **No existía**; creada en local desde `main`                                                                                                    |
 | Estado                                       | Limpio, 12 commits, último `f5c63d8`                                                                                                            |
@@ -304,9 +303,18 @@ UTC−4 sin horario de verano, coincide con el huso del PC. Sustituye a `America
 `DEFAULT` de `user_settings.time_zone` (§7) y en los tests del criterio de §14. Sigue siendo
 seleccionable desde Ajustes.
 
-### D4 — Remoto → **`github.com/Sh4dow8661/WalletApp_Claude`**
+### D4 — Remoto → **`github.com/Sh4dow8661/WalletApp`** (la URL del prompt era la buena)
 
-Es el remoto realmente configurado. Prevalece sobre la URL de §1 del prompt.
+El remoto configurado en local apuntaba a `WalletApp_Claude`, y en la Fase 0 di por hecho que ese
+era el bueno. Al hacer el primer push se vio que **GitHub redirige `WalletApp_Claude` a
+`WalletApp`**: es el nombre antiguo del mismo repositorio. El canónico es
+`Sh4dow8661/WalletApp`, exactamente el que decía §1 del prompt. El remoto local ya está
+reapuntado ahí.
+
+**El repositorio es público.** No hay ningún secreto versionado (`.dev.vars`,
+`keystore.properties` y `local.properties` están fuera, y se comprueba antes de cada commit), y el
+`database_id` de D1 no es sensible (§16). Aun así, conviene saberlo antes del despliegue: cualquiera
+puede leer el código y el historial.
 
 ### D5 — Gestor de paquetes → **pnpm**
 
