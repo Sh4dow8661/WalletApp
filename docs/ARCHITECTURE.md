@@ -457,3 +457,57 @@ habría salido a la luz sin tests que comprobaran valores concretos.
   desplegado. En local va por `.dev.vars` (no versionado; hay un `.dev.vars.example`).
 - El bundle del Worker está en **273 kB gzip**, bastante por debajo del límite de 3 MB del plan
   gratuito, pero conviene vigilarlo al añadir dependencias.
+
+---
+
+## 8. Fase 3 — dominio portado y probado
+
+`src/lib/` queda completo: `id`, `dates`, `balance` y `budget-period` ya entraron en la Fase 2
+porque el backend los necesitaba; en esta se añaden `money`, `csv` y `receipt/`.
+
+**256 tests en verde** (13 archivos), de los cuales 196 son de dominio y 60 de integración.
+
+### Recibos (§3.3)
+
+`ReceiptParser`, `ReceiptCategorizer` y `ParsedReceipt` portados a
+`src/lib/receipt/`, con los **28 tests de Kotlin traducidos caso por caso** y varios añadidos donde
+el port podía divergir. Nada de esto está enchufado todavía: el OCR queda para una v2, tal como
+manda §3.3.
+
+Tres detalles del port que merecen mención:
+
+- `java.text.Normalizer` con `Form.NFD` + `\p{Mn}` se traduce a
+  `normalize("NFD").replace(/\p{Mn}+/gu, "")`.
+- El original usa la zona horaria del dispositivo para construir la fecha del ticket. En el Worker
+  no existe tal cosa, así que **la zona entra por parámetro**. Es la única diferencia deliberada de
+  comportamiento.
+- El original acepta una fecha imposible (31 de febrero) y la deja recortar por `Calendar`. Aquí se
+  rechaza y se devuelve `null`, que es lo que el llamador ya sabe tratar (usa la fecha actual):
+  inventarse el 28 sería peor que admitir que no se pudo leer.
+
+### El CSV no puede reconstruir la dirección de las transferencias
+
+Al escribir el importador salió una pérdida de información que §12 no menciona y que conviene tener
+clara **antes** de usar el CSV como vía de migración.
+
+El CSV exporta las dos patas de una transferencia como dos filas: una con
+`Account=A, TransferAccount=B` y otra con `Account=B, TransferAccount=A`. Pero **no exporta
+`isOutgoing`**. Al reimportar, ante ese par no hay forma de saber cuál era la saliente — y no da
+igual: elegir mal invierte la dirección del dinero y deja los dos saldos intercambiados.
+
+`pairTransfers` empareja por fecha, importe y cuentas cruzadas, y adopta una convención
+determinista: **la fila que aparece antes en el archivo se toma como saliente**. Es una suposición,
+no un dato. El importador tendrá que decir cuántas transferencias reconstruyó para que se revisen.
+
+Además, las transferencias que el bug de §8.2 ya descuadró **no casarán** (sus importes o fechas
+difieren) y saldrán como huérfanas. `pairTransfers` las devuelve aparte precisamente para poder
+avisar de ellas en vez de colarlas mal.
+
+Todo esto es una razón de peso más para hacer la Fase 7 con el **export JSON completo** desde la app
+Android, como recomienda §12, y no con el CSV.
+
+### Diferencia menor en el formato del CSV
+
+El exportador escribe los importes con dos decimales (`25.50`) en lugar del `toString()` de Kotlin
+(`25.5`). Es dinero y se lee mejor en una hoja de cálculo. El importador acepta las dos formas, y
+hay un test de ida y vuelta que lo comprueba.
