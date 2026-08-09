@@ -17,6 +17,9 @@ import {
  * que no se puede dar por bueno nada de lo que manda.
  */
 
+/** Elementos máximos en una lista de identificadores. Ver `idArray`. */
+const MAX_IDS = 50;
+
 export class ValidationError extends Error {
   // Campos declarados aparte y no como parámetros del constructor: los
   // "parameter properties" de TypeScript emiten código, y el tsconfig usa
@@ -169,7 +172,13 @@ export class Validator {
     return v;
   }
 
-  /** Lista de IDs, deduplicada. */
+  /**
+   * Lista de IDs, deduplicada y con techo.
+   *
+   * El techo no es un capricho: la lista acaba en un `IN (...)` y D1 solo admite
+   * 100 variables por sentencia. Además, ninguna pantalla tiene sentido con 50
+   * presupuestos enlazados a un mismo movimiento.
+   */
   idArray(field: string): string[] {
     const v = this.body[field];
     if (v === undefined || v === null) return [];
@@ -181,7 +190,13 @@ export class Validator {
       this.errors[field] = "Contiene identificadores inválidos";
       return [];
     }
-    return [...new Set(v as string[])];
+
+    const unicos = [...new Set(v as string[])];
+    if (unicos.length > MAX_IDS) {
+      this.errors[field] = `No se admiten más de ${MAX_IDS} elementos`;
+      return [];
+    }
+    return unicos;
   }
 
   /** Zona IANA. Se valida contra el propio runtime, no contra una lista fija. */

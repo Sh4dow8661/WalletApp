@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { budgetMetrics, currentPeriod, isBudgetActive } from "@/lib/budget-period.ts";
@@ -28,9 +28,14 @@ const app = new Hono<AppEnv>();
  * regla de anclaje mensual con recorte de día no se expresa razonablemente en
  * SQL. Después se traen **todos** los enlaces de una sola vez y se agregan en
  * memoria: son datos personales, no hay volumen que justifique N consultas.
+ *
+ * Los enlaces se filtran por `userId` y no por la lista de presupuestos: D1 solo
+ * admite 100 variables por sentencia, y una lista de identificadores se las come
+ * a razón de una por elemento.
  */
 async function enrich(
   db: Db,
+  userId: string,
   rows: (typeof budgets.$inferSelect)[],
   timeZone: string,
   now: number,
@@ -59,15 +64,7 @@ async function enrich(
     })
     .from(transactionBudgetRef)
     .innerJoin(transactions, eq(transactions.id, transactionBudgetRef.transactionId))
-    .where(
-      and(
-        inArray(
-          transactionBudgetRef.budgetId,
-          rows.map((b) => b.id),
-        ),
-        isNull(transactions.deletedAt),
-      ),
-    );
+    .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)));
 
   const spentByBudget = new Map<string, number>();
   for (const link of links) {
@@ -112,7 +109,7 @@ app.get("/", async (c) => {
     .where(and(eq(budgets.userId, c.get("userId")), isNull(budgets.deletedAt)))
     .orderBy(asc(budgets.createdAt));
 
-  return c.json(await enrich(db, rows, c.get("timeZone"), Date.now()));
+  return c.json(await enrich(db, c.get("userId"), rows, c.get("timeZone"), Date.now()));
 });
 
 app.get("/:id", async (c) => {
@@ -129,7 +126,7 @@ app.get("/:id", async (c) => {
     );
 
   if (rows.length === 0) return c.json({ error: "Presupuesto no encontrado" }, 404);
-  const [budget] = await enrich(db, rows, c.get("timeZone"), Date.now());
+  const [budget] = await enrich(db, c.get("userId"), rows, c.get("timeZone"), Date.now());
   return c.json(budget);
 });
 

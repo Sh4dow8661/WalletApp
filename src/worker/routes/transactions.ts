@@ -49,9 +49,19 @@ const selection = {
   updatedAt: transactions.updatedAt,
 };
 
-/** Añade a cada transacción la lista de presupuestos a los que está enlazada. */
+/**
+ * Añade a cada transacción la lista de presupuestos a los que está enlazada.
+ *
+ * Los enlaces se piden **por usuario**, no por la lista de identificadores de la
+ * página. D1 solo admite 100 variables por sentencia y esta consulta devuelve
+ * hasta 1000 filas: filtrar por los ids fallaba con `too many SQL variables` en
+ * cuanto había más de 100 movimientos, o sea, en cualquier uso real. Pedirlos
+ * por usuario gasta una sola variable, y la tabla es pequeña porque solo tiene
+ * fila cuando se enlaza a mano (§8.4).
+ */
 async function withBudgetIds(
   db: Db,
+  userId: string,
   rows: Omit<Transaction, "budgetIds">[],
 ): Promise<Transaction[]> {
   if (rows.length === 0) return [];
@@ -62,12 +72,8 @@ async function withBudgetIds(
       budgetId: transactionBudgetRef.budgetId,
     })
     .from(transactionBudgetRef)
-    .where(
-      inArray(
-        transactionBudgetRef.transactionId,
-        rows.map((r) => r.id),
-      ),
-    );
+    .innerJoin(transactions, eq(transactions.id, transactionBudgetRef.transactionId))
+    .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)));
 
   const byTransaction = new Map<string, string[]>();
   for (const link of links) {
@@ -102,24 +108,25 @@ app.get("/", async (c) => {
     .orderBy(desc(transactions.date), desc(transactions.id))
     .limit(Math.min(Number(limit) || 500, 1000));
 
-  return c.json(await withBudgetIds(db, rows));
+  return c.json(await withBudgetIds(db, userId, rows));
 });
 
 app.get("/:id", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const rows = await db
     .select(selection)
     .from(transactions)
     .where(
       and(
         eq(transactions.id, c.req.param("id")),
-        eq(transactions.userId, c.get("userId")),
+        eq(transactions.userId, userId),
         isNull(transactions.deletedAt),
       ),
     );
 
   if (rows.length === 0) return c.json({ error: "Transacción no encontrada" }, 404);
-  const [tx] = await withBudgetIds(db, rows);
+  const [tx] = await withBudgetIds(db, userId, rows);
   return c.json(tx);
 });
 

@@ -729,3 +729,125 @@ Los criterios _funcionales_ de §9 sí están verificados por los tests de arrib
 Lo que queda pendiente son los **números** (Performance ≥ 90, Accessibility ≥ 95).
 Se pueden sacar en un clic desde Chrome → DevTools → Lighthouse contra
 `pnpm preview`, y conviene hacerlo antes de dar por buena la Fase 8.
+
+## 12. Fase 7 — migración de los datos reales
+
+### El CSV no bastaba, y el motivo no era obvio
+
+La app Android ya exportaba CSV, así que la vía "natural" era importar ese
+archivo. Al leer `CsvExporter.kt` quedó claro que no sirve como método de
+migración: el formato es
+
+```
+Date,Type,Amount,Category,Account,TransferAccount,Note
+```
+
+y ahí **no está `isOutgoing`**. Ante un par de filas `(A→B)` y `(B→A)` no hay
+forma de saber cuál era la que salía, y elegir mal invierte la dirección del
+dinero y deja los dos saldos intercambiados. Además se pierden presupuestos,
+enlaces transacción↔presupuesto, balances iniciales, colores, iconos e
+`includeInTotal`.
+
+Por eso la Fase 7 empieza **en el lado Android**: se añadió un exportador JSON
+que vuelca las cinco tablas enteras.
+
+### Lo añadido a la app Android (`legacy-android/`)
+
+- `data/local/dao/ExportDao.kt` — cinco lecturas completas, `suspend` y sin
+  `Flow`: aquí no interesa observar cambios, sino leer cada tabla una vez.
+- `util/JsonExporter.kt` — `FORMAT_VERSION = 1`. Emite `formato`, `version`,
+  `exportadoEn`, `zonaHoraria`, `moneda`, `app` y las cinco secciones. Usa
+  `org.json` (viene con Android): añadir una librería de serialización a una app
+  que ya no se va a tocar más no compensa.
+- Conectado en `WalletDatabase`, `DatabaseModule`, `SettingsViewModel.exportJson()`
+  y una tarjeta nueva en `SettingsScreen`: **«Exportar todo (JSON)»**.
+- `versionCode = 5`, `versionName = "1.9.2"`. APK de release firmada con el
+  keystore de siempre (`CN=WalletApp, O=Sh4dow8661`), así que se instala encima
+  de la que hay **sin borrar los datos**.
+
+La zona horaria del dispositivo va en el archivo a propósito: las fechas son
+epoch millis y, para interpretarlas sin correr el día, hay que saber en qué huso
+se eligieron (§8.6).
+
+### Lo añadido a la PWA
+
+- `src/lib/import-json.ts` — validación y traducción. Los identificadores de Room
+  son enteros por tabla; en D1 son UUID v7. Se construye un mapa por tabla y se
+  traduce **toda** referencia, así que los enlaces sobreviven.
+- `src/worker/routes/import-export.ts` — `POST /api/data/{json,csv}` para
+  importar y `GET /api/data/{json,csv}` para exportar.
+- `src/app/components/gestion-datos.tsx` — la UI en Ajustes, con confirmación
+  antes de reemplazar y un resumen al terminar.
+
+### Tres decisiones
+
+**1. Importar reemplaza, no fusiona.** Sin una clave estable compartida entre
+Room y D1, "añadir" duplicaría cuentas y categorías en cuanto se importara dos
+veces el mismo archivo. Reemplazar es además lo que se necesita para migrar. La
+UI lo dice con todas las letras antes de tocar nada.
+
+**2. El borrado previo es físico, no lógico.** En el resto de la app el borrado
+es lógico (`deleted_at`), pero aquí dejar las filas viejas marcadas solo serviría
+para inflar la base y para que un export posterior arrastrara dos juegos de datos
+distintos.
+
+**3. El export de la PWA usa el mismo formato que el de Android.** Así el
+importador sirve para migrar **y** para restaurar una copia de seguridad, y no
+hay dos formatos que mantener.
+
+### Nada del archivo se da por bueno
+
+El archivo lo elige el usuario y puede venir de cualquier parte, así que cada
+campo se comprueba: tipos, iconos y recurrencias contra sus listas de constantes,
+los colores contra `#RRGGBB`, los identificadores contra enteros. Lo que no
+encaja se sustituye por un valor válido en vez de acabar en la base y romper una
+pantalla más tarde; lo que no se puede rescatar (una transacción cuya cuenta no
+está en el archivo) se descarta y **se cuenta en el resumen**.
+
+Las transferencias se reagrupan bajo un `transfer_group_id` nuevo emparejando
+cada pata saliente con su entrante (mismo importe, misma fecha, cuentas
+cruzadas). Las que quedan sueltas —herencia del bug de §8.2, que descuadraba las
+patas al editar— **se importan igual**: el dinero se movió de verdad. El resumen
+avisa de cuántas hay para poder repasarlas.
+
+### Un bug de D1 que este trabajo destapó
+
+Al probar la importación con 220 movimientos, la inserción falló con
+`too many SQL variables`. **D1 solo admite 100 variables por sentencia**, y un
+`INSERT` de varias filas gasta una por columna y por fila.
+
+Buscando otros sitios con el mismo patrón apareció uno **mucho peor**, que no
+tiene nada que ver con importar: `withBudgetIds()` en
+`src/worker/routes/transactions.ts` pedía los enlaces con
+`IN (id1, id2, …)` usando los identificadores de la página, y esa consulta
+devuelve hasta 1000 filas. Es decir: **`GET /api/transactions` daba un 500 en
+cuanto había más de 100 movimientos** — la pantalla principal de la app, con
+cualquier historial real. No había saltado antes porque ningún test llegaba a
+esa cantidad de filas.
+
+Corregido en tres sitios, siempre igual: filtrar por `userId` con un `JOIN` en
+vez de por una lista de identificadores, lo que gasta **una** variable en lugar
+de N.
+
+- `transactions.ts` → `withBudgetIds()`
+- `budgets.ts` → `enrich()`
+- `import-export.ts` → el export JSON
+
+Y en `validation.ts`, `idArray()` ahora rechaza más de 50 elementos: esa lista
+viene del cliente y también termina en un `IN (...)`.
+
+Para que no vuelva a pasar, el troceado de los `INSERT` **deriva el tamaño del
+lote del número de columnas de las propias filas** en vez de tenerlo escrito a
+mano, de modo que añadir una columna mañana ajuste el lote solo.
+
+### Verificación
+
+- **33 tests nuevos** (289 en total): 16 unitarios de la traducción y 17 de
+  integración contra la D1 real.
+- El de ida y vuelta es el que importa: sembrar datos → exportar → importar →
+  comprobar que cuentas, categorías, movimientos, saldos, presupuestos y **lo
+  gastado en cada presupuesto** quedan exactamente igual. Solo cambian los
+  identificadores y las marcas de tiempo, que el formato no lleva.
+- Se comprueba también que una transferencia importada **sigue editándose como
+  una sola cosa** (las dos patas a la vez), que un archivo inválido se rechaza
+  **sin tocar los datos que ya había**, y que 220 movimientos entran de una vez.

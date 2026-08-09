@@ -5,6 +5,7 @@ import { type AppEnv, requireSession } from "./context.ts";
 import accounts from "./routes/accounts.ts";
 import budgets from "./routes/budgets.ts";
 import categories from "./routes/categories.ts";
+import data from "./routes/import-export.ts";
 import settings from "./routes/settings.ts";
 import stats from "./routes/stats.ts";
 import transactions from "./routes/transactions.ts";
@@ -44,6 +45,7 @@ app.route("/api/transactions", transactions);
 app.route("/api/budgets", budgets);
 app.route("/api/settings", settings);
 app.route("/api/stats", stats);
+app.route("/api/data", data);
 
 app.all("/api/*", (c) => c.json({ error: "Ruta no encontrada" }, 404));
 

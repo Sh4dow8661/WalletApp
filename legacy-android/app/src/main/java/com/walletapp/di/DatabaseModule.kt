@@ -7,6 +7,7 @@ import com.walletapp.data.local.WalletDatabase
 import com.walletapp.data.local.dao.AccountDao
 import com.walletapp.data.local.dao.BudgetDao
 import com.walletapp.data.local.dao.CategoryDao
+import com.walletapp.data.local.dao.ExportDao
 import com.walletapp.data.local.dao.TransactionBudgetDao
 import com.walletapp.data.local.dao.TransactionDao
 import dagger.Module
@@ -59,4 +60,5 @@ object DatabaseModule {
     @Provides fun provideTransactionDao(db: WalletDatabase): TransactionDao = db.transactionDao()
     @Provides fun provideBudgetDao(db: WalletDatabase): BudgetDao = db.budgetDao()
     @Provides fun provideTransactionBudgetDao(db: WalletDatabase): TransactionBudgetDao = db.transactionBudgetDao()
+    @Provides fun provideExportDao(db: WalletDatabase): ExportDao = db.exportDao()
 }

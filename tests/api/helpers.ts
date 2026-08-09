@@ -22,6 +22,8 @@ export interface Cliente {
   post(ruta: string, body?: unknown): Promise<Response>;
   put(ruta: string, body?: unknown): Promise<Response>;
   del(ruta: string): Promise<Response>;
+  /** POST con el cuerpo tal cual, sin serializar. Lo usa la importación. */
+  postRaw(ruta: string, body: string, contentType: string): Promise<Response>;
   json<T>(respuesta: Response): Promise<T>;
 }
 
@@ -77,6 +79,14 @@ export async function crearUsuario(): Promise<Cliente> {
     post: pedir("POST"),
     put: pedir("PUT"),
     del: (ruta) => pedir("DELETE")(ruta),
+    postRaw: (ruta, body, contentType) =>
+      exports.default.fetch(
+        new Request(`${ORIGEN}${ruta}`, {
+          method: "POST",
+          headers: { cookie, "content-type": contentType },
+          body,
+        }),
+      ),
     json: async <T>(respuesta: Response) => (await respuesta.json()) as T,
   };
 }

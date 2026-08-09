@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.walletapp.data.local.dao.AccountDao
 import com.walletapp.data.local.dao.BudgetDao
 import com.walletapp.data.local.dao.CategoryDao
+import com.walletapp.data.local.dao.ExportDao
 import com.walletapp.data.local.dao.TransactionBudgetDao
 import com.walletapp.data.local.dao.TransactionDao
 import com.walletapp.data.local.entity.AccountEntity
@@ -32,6 +33,9 @@ abstract class WalletDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun budgetDao(): BudgetDao
     abstract fun transactionBudgetDao(): TransactionBudgetDao
+
+    /** Lecturas completas para el volcado JSON de la migración (§12). */
+    abstract fun exportDao(): ExportDao
 
     companion object {
         const val DATABASE_NAME = "wallet_database"

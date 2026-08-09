@@ -61,6 +61,15 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  /**
+   * Envía el contenido de un archivo tal cual, sin serializarlo.
+   *
+   * Lo usa la importación: el archivo ya es texto (JSON o CSV) y volver a
+   * pasarlo por `JSON.stringify` solo lo envolvería en comillas y duplicaría su
+   * tamaño en el envío.
+   */
+  postText: <T>(path: string, body: string, contentType: string) =>
+    request<T>(path, { method: "POST", body, headers: { "content-type": contentType } }),
 };
 
 /** Construye una query string omitiendo los parámetros vacíos. */

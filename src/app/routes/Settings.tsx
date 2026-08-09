@@ -1,7 +1,6 @@
 import {
   CalendarDays,
   ChevronRight,
-  Download,
   LogOut,
   Moon,
   Sun,
@@ -9,28 +8,20 @@ import {
   Tag,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { csvFileName, toCsv } from "@/lib/csv.ts";
 import { SUPPORTED_CURRENCIES, THEME_MODES, type ThemeMode } from "@/shared/constants.ts";
 
+import { GestionDatos } from "../components/gestion-datos.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Card, CardTitle } from "../components/ui/card.tsx";
 import { SelectField } from "../components/ui/field.tsx";
-import {
-  useAccounts,
-  useCategories,
-  useSaveSettings,
-  useSettings,
-} from "../hooks/api.ts";
-import { api } from "../lib/api.ts";
+import { useSaveSettings, useSettings } from "../hooks/api.ts";
 import { cn } from "../lib/cn.ts";
 import { signOut } from "../lib/auth-client.ts";
 import { olvidarSesion } from "../lib/sesion-recordada.ts";
 import { useTheme } from "../lib/theme.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
-import type { Transaction } from "@/shared/types.ts";
 
 /** Ajustes. Réplica de `SettingsScreen.kt` más la zona horaria y cerrar sesión. */
 export function SettingsScreen() {
@@ -132,11 +123,7 @@ export function SettingsScreen() {
 
         <Card className="space-y-3">
           <CardTitle>Datos</CardTitle>
-          <ExportarCsv />
-          <p className="text-xs opacity-60">
-            El CSV lleva las transacciones con el mismo formato que la app Android. No
-            incluye presupuestos ni sus enlaces.
-          </p>
+          <GestionDatos />
         </Card>
 
         <Button
@@ -179,76 +166,3 @@ function EnlaceAjuste({
   );
 }
 
-/**
- * Descarga el CSV.
- *
- * Se genera en el cliente a partir del API: se piden todas las transacciones sin
- * filtro de fecha y se resuelven los nombres de cuenta y categoría, que es lo
- * que espera el formato de `CsvExporter`.
- */
-function ExportarCsv() {
-  const ajustes = useSettings();
-  const cuentas = useAccounts();
-  const categorias = useCategories();
-  const [exportando, setExportando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function exportar() {
-    setExportando(true);
-    setError(null);
-    try {
-      const transacciones = await api.get<Transaction[]>("/api/transactions?limit=1000");
-      const nombreCuenta = new Map((cuentas.data ?? []).map((c) => [c.id, c.name]));
-      const nombreCategoria = new Map((categorias.data ?? []).map((c) => [c.id, c.name]));
-
-      const csv = toCsv(
-        transacciones.map((tx) => ({
-          date: tx.date,
-          type: tx.type,
-          amount: tx.amount,
-          categoryName: tx.categoryId ? nombreCategoria.get(tx.categoryId) : "",
-          accountName: nombreCuenta.get(tx.accountId),
-          transferAccountName: tx.transferAccountId
-            ? nombreCuenta.get(tx.transferAccountId)
-            : "",
-          note: tx.note,
-        })),
-        ajustes.data?.timeZone ?? "America/Puerto_Rico",
-      );
-
-      // Descarga por enlace temporal: es lo que funciona igual en móvil y en
-      // escritorio sin pedir permisos.
-      const url = URL.createObjectURL(
-        new Blob([csv], { type: "text/csv;charset=utf-8" }),
-      );
-      const enlace = document.createElement("a");
-      enlace.href = url;
-      enlace.download = csvFileName();
-      enlace.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("No se pudo generar el archivo");
-    } finally {
-      setExportando(false);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="secondary"
-        full
-        onClick={() => void exportar()}
-        disabled={exportando}
-      >
-        <Download className="size-4" />
-        {exportando ? "Generando…" : "Exportar CSV"}
-      </Button>
-      {error && (
-        <p role="alert" className="text-xs text-expense">
-          {error}
-        </p>
-      )}
-    </>
-  );
-}

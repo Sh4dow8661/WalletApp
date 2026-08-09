@@ -62,12 +62,15 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.exportedFile.collect { file ->
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val esJson = file.name.endsWith(".json")
             val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
+                type = if (esJson) "application/json" else "text/csv"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Exportar CSV"))
+            context.startActivity(
+                Intent.createChooser(intent, if (esJson) "Exportar todo" else "Exportar CSV")
+            )
         }
     }
 
@@ -120,7 +123,34 @@ fun SettingsScreen(
                     Column(Modifier.weight(1f)) {
                         Text("Exportar a CSV", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Guardar todas las transacciones",
+                            "Solo transacciones, sin presupuestos",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            // Volcado completo para migrar a la PWA (§12). A diferencia del CSV
+            // no pierde presupuestos, enlaces, balances iniciales, colores,
+            // iconos ni la dirección de las transferencias.
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { viewModel.exportJson() },
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.FileDownload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Exportar todo (JSON)", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Copia completa: cuentas, categorías, transacciones y presupuestos",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

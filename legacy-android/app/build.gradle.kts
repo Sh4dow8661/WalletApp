@@ -23,8 +23,9 @@ android {
         applicationId = "com.walletapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.9.1"
+        // 1.9.2 añade "Exportar todo (JSON)" para migrar los datos a la PWA (§12).
+        versionCode = 5
+        versionName = "1.9.2"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -60,7 +61,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    // buildConfig: lo necesita el volcado JSON para anotar la versión de la app.
+    buildFeatures { compose = true; buildConfig = true }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
