@@ -1,0 +1,252 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import type {
+  Account,
+  AccountInput,
+  Budget,
+  BudgetInput,
+  Category,
+  CategoryInput,
+  CategorySpend,
+  DailySpend,
+  DashboardSummary,
+  MonthlyTrendPoint,
+  Transaction,
+  TransactionInput,
+  UserSettings,
+  UserSettingsInput,
+} from "@/shared/types.ts";
+
+import { api, queryString } from "../lib/api.ts";
+
+/**
+ * Acceso a datos con TanStack Query.
+ *
+ * Sustituye a los `Flow` de Room: donde en Android la UI se re-renderizaba sola
+ * al cambiar la base, aquí se invalidan las claves afectadas tras cada mutación
+ * y Query vuelve a pedir lo que haga falta.
+ */
+
+export const claves = {
+  cuentas: ["accounts"] as const,
+  categorias: ["categories"] as const,
+  transacciones: (filtros?: FiltrosTransacciones) =>
+    filtros ? (["transactions", filtros] as const) : (["transactions"] as const),
+  presupuestos: ["budgets"] as const,
+  ajustes: ["settings"] as const,
+  estadisticas: ["stats"] as const,
+  panel: (year?: number, month?: number) => ["stats", "dashboard", year, month] as const,
+  porCategoria: (year?: number, month?: number) =>
+    ["stats", "by-category", year, month] as const,
+  tendencia: (year?: number, month?: number) => ["stats", "trend", year, month] as const,
+  diario: (year?: number, month?: number) => ["stats", "daily", year, month] as const,
+};
+
+export interface FiltrosTransacciones {
+  from?: number;
+  to?: number;
+  categoryId?: string;
+  accountId?: string;
+  limit?: number;
+}
+
+// --- Lecturas --------------------------------------------------------------
+
+export function useAccounts() {
+  return useQuery({
+    queryKey: claves.cuentas,
+    queryFn: () => api.get<Account[]>("/api/accounts"),
+  });
+}
+
+export function useCategories() {
+  return useQuery({
+    queryKey: claves.categorias,
+    queryFn: () => api.get<Category[]>("/api/categories"),
+  });
+}
+
+export function useTransactions(filtros: FiltrosTransacciones = {}) {
+  return useQuery({
+    queryKey: claves.transacciones(filtros),
+    queryFn: () =>
+      api.get<Transaction[]>(`/api/transactions${queryString({ ...filtros })}`),
+  });
+}
+
+export function useTransaction(id: string | null) {
+  return useQuery({
+    queryKey: ["transactions", "detalle", id],
+    queryFn: () => api.get<Transaction>(`/api/transactions/${id}`),
+    enabled: id !== null,
+  });
+}
+
+export function useBudgets() {
+  return useQuery({
+    queryKey: claves.presupuestos,
+    queryFn: () => api.get<Budget[]>("/api/budgets"),
+  });
+}
+
+export function useSettings() {
+  return useQuery({
+    queryKey: claves.ajustes,
+    queryFn: () => api.get<UserSettings>("/api/settings"),
+  });
+}
+
+export function useDashboard(year?: number, month?: number) {
+  return useQuery({
+    queryKey: claves.panel(year, month),
+    queryFn: () =>
+      api.get<DashboardSummary>(`/api/stats/dashboard${queryString({ year, month })}`),
+  });
+}
+
+export function useSpendByCategory(year?: number, month?: number) {
+  return useQuery({
+    queryKey: claves.porCategoria(year, month),
+    queryFn: () =>
+      api.get<CategorySpend[]>(`/api/stats/by-category${queryString({ year, month })}`),
+  });
+}
+
+export function useMonthlyTrend(year?: number, month?: number) {
+  return useQuery({
+    queryKey: claves.tendencia(year, month),
+    queryFn: () =>
+      api.get<MonthlyTrendPoint[]>(`/api/stats/trend${queryString({ year, month })}`),
+  });
+}
+
+export function useDailySpend(year?: number, month?: number) {
+  return useQuery({
+    queryKey: claves.diario(year, month),
+    queryFn: () =>
+      api.get<DailySpend[]>(`/api/stats/daily${queryString({ year, month })}`),
+  });
+}
+
+// --- Escrituras ------------------------------------------------------------
+
+/**
+ * Invalida todo lo que depende del dinero.
+ *
+ * Se invalida de más a propósito: una transacción cambia balances, presupuestos
+ * y los cuatro agregados a la vez, y afinar qué clave concreta se vio afectada
+ * costaría más de lo que ahorra. Son consultas pequeñas contra el mismo Worker.
+ */
+function useInvalidarDatos() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    void queryClient.invalidateQueries({ queryKey: claves.cuentas });
+    void queryClient.invalidateQueries({ queryKey: claves.presupuestos });
+    void queryClient.invalidateQueries({ queryKey: claves.estadisticas });
+  };
+}
+
+export function useSaveAccount() {
+  const invalidar = useInvalidarDatos();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...input }: AccountInput & { id?: string }) =>
+      id
+        ? api.put<{ id: string }>(`/api/accounts/${id}`, input)
+        : api.post<{ id: string }>("/api/accounts", input),
+    onSuccess: () => {
+      invalidar();
+      void queryClient.invalidateQueries({ queryKey: claves.categorias });
+    },
+  });
+}
+
+export function useDeleteAccount() {
+  const invalidar = useInvalidarDatos();
+  return useMutation({
+    mutationFn: (id: string) => api.del<{ id: string }>(`/api/accounts/${id}`),
+    onSuccess: invalidar,
+  });
+}
+
+export function useSaveCategory() {
+  const queryClient = useQueryClient();
+  const invalidar = useInvalidarDatos();
+
+  return useMutation({
+    mutationFn: ({ id, ...input }: CategoryInput & { id?: string }) =>
+      id
+        ? api.put<{ id: string }>(`/api/categories/${id}`, input)
+        : api.post<{ id: string }>("/api/categories", input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: claves.categorias });
+      invalidar();
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  const invalidar = useInvalidarDatos();
+
+  return useMutation({
+    mutationFn: (id: string) => api.del<{ id: string }>(`/api/categories/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: claves.categorias });
+      invalidar();
+    },
+  });
+}
+
+export function useSaveTransaction() {
+  const invalidar = useInvalidarDatos();
+  return useMutation({
+    mutationFn: ({ id, ...input }: TransactionInput & { id?: string }) =>
+      id
+        ? api.put<{ id: string }>(`/api/transactions/${id}`, input)
+        : api.post<{ id: string }>("/api/transactions", input),
+    onSuccess: invalidar,
+  });
+}
+
+export function useDeleteTransaction() {
+  const invalidar = useInvalidarDatos();
+  return useMutation({
+    mutationFn: (id: string) => api.del<{ id: string }>(`/api/transactions/${id}`),
+    onSuccess: invalidar,
+  });
+}
+
+export function useSaveBudget() {
+  const invalidar = useInvalidarDatos();
+  return useMutation({
+    mutationFn: ({ id, ...input }: BudgetInput & { id?: string }) =>
+      id
+        ? api.put<{ id: string }>(`/api/budgets/${id}`, input)
+        : api.post<{ id: string }>("/api/budgets", input),
+    onSuccess: invalidar,
+  });
+}
+
+export function useDeleteBudget() {
+  const invalidar = useInvalidarDatos();
+  return useMutation({
+    mutationFn: (id: string) => api.del<{ id: string }>(`/api/budgets/${id}`),
+    onSuccess: invalidar,
+  });
+}
+
+export function useSaveSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UserSettingsInput) =>
+      api.put<UserSettings>("/api/settings", input),
+    onSuccess: (ajustes) => {
+      queryClient.setQueryData(claves.ajustes, ajustes);
+      // La zona horaria cambia TODOS los agregados por día y por mes (§8.6).
+      void queryClient.invalidateQueries({ queryKey: claves.estadisticas });
+    },
+  });
+}

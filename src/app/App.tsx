@@ -1,64 +1,57 @@
-import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { BrowserRouter } from "react-router";
 
-interface Health {
-  ok: boolean;
-  servicio: string;
-  fase: number;
-  runtime: string;
-}
+import { useSettings } from "./hooks/api.ts";
+import { ApiRequestError } from "./lib/api.ts";
+import { ThemeProvider, useTheme } from "./lib/theme.tsx";
+import { AppRouter } from "./router.tsx";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Un minuto: los datos son de un solo usuario y cambian por sus propias
+      // acciones, que ya invalidan la caché. Reconsultar más seguido no aporta.
+      staleTime: 60_000,
+      retry: (fallos, error) => {
+        // Reintentar un 401 no tiene sentido: la sesión no va a volver sola.
+        if (error instanceof ApiRequestError && error.isUnauthorized) return false;
+        return fallos < 2;
+      },
+    },
+  },
+});
 
 /**
- * Pantalla de humo de la Fase 1. Su único trabajo es demostrar que la cadena
- * completa funciona: React monta, Tailwind aplica el tema y el navegador habla
- * con el Worker corriendo en workerd. La UI de verdad llega en la Fase 4.
+ * Alinea el tema guardado en el servidor con el que se está mostrando.
+ *
+ * El tema se aplica desde `localStorage` antes de que llegue nada del API para
+ * evitar el fogonazo blanco; cuando responden los ajustes, si difieren, gana el
+ * servidor, que es el que comparten los dispositivos.
  */
-export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function SincronizarTema() {
+  const { data: settings } = useSettings();
+  const { mode, setMode } = useTheme();
 
   useEffect(() => {
-    fetch("/api/health")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Health>;
-      })
-      .then(setHealth)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+    if (settings && settings.themeMode !== mode) setMode(settings.themeMode);
+    // Solo debe reaccionar a lo que llega del servidor, no a los cambios
+    // locales: si no, se pisaría a sí mismo al tocar el selector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.themeMode]);
 
+  return null;
+}
+
+export function App() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 px-6 text-center">
-      <div className="bg-primary-light dark:bg-primary-dark/20 rounded-3xl p-5">
-        <Wallet className="text-primary size-12" aria-hidden />
-      </div>
-
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">WalletApp</h1>
-        <p className="text-sm opacity-70">Migración a PWA · Fase 1</p>
-      </div>
-
-      <div className="w-full rounded-2xl border border-black/10 p-4 text-left text-sm dark:border-white/15">
-        <p className="mb-2 font-medium">Estado del Worker</p>
-        {error && <p className="text-expense">Sin respuesta: {error}</p>}
-        {!error && !health && <p className="opacity-60">Consultando…</p>}
-        {health && (
-          <dl className="space-y-1 font-mono text-xs">
-            <div className="flex justify-between gap-4">
-              <dt className="opacity-60">servicio</dt>
-              <dd>{health.servicio}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="opacity-60">fase</dt>
-              <dd>{health.fase}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="opacity-60">runtime</dt>
-              <dd className="text-income">{health.runtime}</dd>
-            </div>
-          </dl>
-        )}
-      </div>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <SincronizarTema />
+          <AppRouter />
+        </BrowserRouter>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

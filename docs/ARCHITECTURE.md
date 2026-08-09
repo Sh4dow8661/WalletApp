@@ -511,3 +511,69 @@ Android, como recomienda §12, y no con el CSV.
 El exportador escribe los importes con dos decimales (`25.50`) en lugar del `toString()` de Kotlin
 (`25.5`). Es dinero y se lee mejor en una hoja de cálculo. El importador acepta las dos formas, y
 hay un test de ida y vuelta que lo comprueba.
+
+---
+
+## 9. Fase 4 — UI móvil
+
+Las 12 rutas de §1 más las 3 de acceso, con paridad funcional y tema claro / oscuro / sistema.
+
+### Estructura
+
+- `src/app/lib/` — cliente HTTP tipado, cliente de Better Auth, mapeo de los 17 iconos a lucide,
+  proveedor de tema.
+- `src/app/hooks/` — TanStack Query (`api.ts`), `useBreakpoint`, `useMonth`.
+- `src/app/components/ui/` — botón, tarjeta, campos, `ResponsiveDialog` (bottom sheet en móvil,
+  diálogo en escritorio) y `ConfirmDialog`.
+- `src/app/components/domain.tsx` — `CategoryIcon`, `MoneyText`, `MonthSelector`, `IconPicker`,
+  `ProgressBar`.
+- `src/app/routes/` — las pantallas.
+
+### Decisiones
+
+**Los formularios se montan con `key` en vez de sincronizarse con un efecto.** Cada pantalla de
+alta/edición se parte en dos: una que carga los datos y otra que recibe los valores iniciales y los
+mete en `useState`. Volcar los datos del servidor al estado desde un `useEffect` provoca renders en
+cascada — y el linter de React lo marca como error. Con `key`, cambiar de registro remonta el
+formulario limpio.
+
+**Los controles son nativos** (`input`, `select`, `textarea`). En móvil abren el teclado y los
+selectores del sistema, que se manejan mucho mejor que cualquier réplica en JavaScript. Todos
+respetan el mínimo de 44 px de §10.
+
+**Las pantallas de formulario ocultan la barra inferior** y ocupan la pantalla completa, como en la
+app Android y como pide §10. Además del criterio de diseño, tiene un efecto práctico: con la barra
+puesta, tapaba el botón de guardar.
+
+**El tema se aplica primero desde `localStorage` y luego lo confirma el servidor.** Sin el paso por
+`localStorage` habría un fogonazo blanco en cada carga mientras llega la respuesta del API; sin el
+del servidor, el tema no se compartiría entre el móvil y el PC.
+
+### Un bug propio, encontrado mirando la pantalla
+
+En la leyenda de estadísticas aparecía una entrada fantasma: "Sin categoría" con el mismo importe
+que "Comida", y los porcentajes sumaban más de 100.
+
+La causa era la `key` de React. Estaba usando el **nombre** de la categoría, y en el primer render
+—cuando la lista de categorías todavía no ha llegado— **todas** las entradas se llaman "Sin
+categoría". Con claves repetidas React deja nodos huérfanos, que es exactamente lo que se veía. La
+clave es ahora el `categoryId`.
+
+Es un fallo que ningún test de dominio podía cazar: solo aparece con el temporizado real de dos
+consultas que resuelven por separado.
+
+### Qué se verificó en el navegador
+
+Con un usuario real registrado desde la app y datos de prueba creados por el API, a 375×812:
+
+- **Inicio**: balance total 5 654,50 = 1 014,50 + 4 640 + 0; ingresos del mes 1 800; gastos 195,50.
+  Los tres saldos cuadran con las transacciones creadas, incluida la transferencia.
+- **Presupuestos**: destaca el restante (175 = 250 − 75) y sugiere 14,58/día = 175/12, con la
+  barra de progreso al 30 %.
+- **Estadísticas**: Comida 69 % / Transporte 31 %, sumando los 195,50 del mes.
+- **Calendario**: el gasto de hoy aparece en el día **9**, no en el 8 — la corrección de §8.6
+  funcionando de verdad y no solo en los tests.
+- **Ajustes**: las 20 monedas, los 3 temas y la zona horaria; export CSV.
+- Sin scroll horizontal y sin errores de consola propios (solo los del WebSocket de HMR, que son
+  del navegador embebido).
+- Tema claro y oscuro, ambos comprobados con captura.
