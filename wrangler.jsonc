@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "walletapp",
+  // Tope de lo que soporta el binario de workerd que trae esta versión de
+  // wrangler/miniflare. Poner una fecha posterior hace que `vite dev` no arranque
+  // con ERR_RUNTIME_FAILURE. Al actualizar wrangler se puede subir.
+  "compatibility_date": "2026-08-08",
+  // Better Auth y Drizzle usan APIs de Node (crypto, buffer).
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker/index.ts",
+
+  // Un solo Worker sirve la SPA y la API.
+  // - not_found_handling: cualquier ruta que no sea un archivo devuelve index.html,
+  //   que es lo que necesita React Router para el enrutado del lado del cliente.
+  // - run_worker_first: /api/* va al Worker antes que a los assets. Al declararlo
+  //   explícitamente dejamos de depender de la heurística de la cabecera
+  //   Sec-Fetch-Mode. Better Auth cuelga de /api/auth/*, así que ya queda dentro.
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // El binding de D1 se añade en la Fase 2, cuando exista walletapp-db.
+  // Los secretos (BETTER_AUTH_SECRET) van con `wrangler secret put`, nunca aquí.
+}

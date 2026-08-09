@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // worker-configuration.d.ts lo genera `pnpm cf-typegen` a partir de wrangler.jsonc.
+    "types": ["./worker-configuration.d.ts"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+
+    // TypeScript 7 eliminó `baseUrl`: los paths se resuelven relativos a este archivo.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  // El backend comparte src/lib y src/shared con el frontend: las reglas de
+  // negocio se escriben una sola vez y las usan los dos lados.
+  "include": ["src/worker", "src/lib", "src/shared"]
+}

@@ -34,16 +34,16 @@
 
 ## 🛠 Stack técnico
 
-| Capa | Tecnología |
-|------|-----------|
-| Lenguaje | Kotlin |
-| UI | Jetpack Compose + Material 3 |
-| Arquitectura | MVVM + Clean Architecture |
-| Persistencia | Room |
-| DI | Hilt |
-| Async | Coroutines + Flow |
-| Preferencias | DataStore |
-| Gráficas | Canvas puro (sin dependencias externas) |
+| Capa         | Tecnología                              |
+| ------------ | --------------------------------------- |
+| Lenguaje     | Kotlin                                  |
+| UI           | Jetpack Compose + Material 3            |
+| Arquitectura | MVVM + Clean Architecture               |
+| Persistencia | Room                                    |
+| DI           | Hilt                                    |
+| Async        | Coroutines + Flow                       |
+| Preferencias | DataStore                               |
+| Gráficas     | Canvas puro (sin dependencias externas) |
 
 > No se usan Retrofit, Firebase ni ningún permiso de red.
 
@@ -100,13 +100,13 @@ app/src/main/java/com/walletapp/
 
 ## 📱 Pantallas
 
-| Pantalla | Descripción |
-|----------|-------------|
-| **Inicio** | Balance total, resumen mensual, cuentas y transacciones recientes |
-| **Transacciones** | Lista filtrable por mes, categoría y cuenta |
-| **Presupuestos** | Lista mensual con barra de progreso por categoría |
-| **Estadísticas** | Pie chart por categoría, tendencia de 6 meses |
-| **Ajustes** | Cuentas, categorías, moneda, tema, exportar CSV |
+| Pantalla          | Descripción                                                       |
+| ----------------- | ----------------------------------------------------------------- |
+| **Inicio**        | Balance total, resumen mensual, cuentas y transacciones recientes |
+| **Transacciones** | Lista filtrable por mes, categoría y cuenta                       |
+| **Presupuestos**  | Lista mensual con barra de progreso por categoría                 |
+| **Estadísticas**  | Pie chart por categoría, tendencia de 6 meses                     |
+| **Ajustes**       | Cuentas, categorías, moneda, tema, exportar CSV                   |
 
 El **FAB** abre el formulario para registrar una transacción. El ícono superior del Inicio abre la **vista de calendario** con mapa de calor de gastos diarios.
 

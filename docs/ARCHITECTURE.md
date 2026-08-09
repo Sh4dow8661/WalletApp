@@ -9,48 +9,50 @@ Rama de trabajo: `claude/app-progressive-web-app-2zwq2z` (creada desde `main`).
 
 Todo lo de esta tabla está comprobado ejecutando el comando, no supuesto.
 
-| Herramienta | Resultado | Nota |
-|---|---|---|
-| Node | **v26.7.0** | Cumple el requisito de Node 20+. Versión muy reciente; vigilar incompatibilidades con Vite/Vitest. |
-| npm | 11.19.0 | Disponible |
-| pnpm | **no instalado** | Los criterios de aceptación de §14 hablan de `pnpm dev/test/build`. Propongo instalarlo (`npm i -g pnpm`) en la Fase 1. |
-| wrangler | 4.120.0 (vía `npx`) | Sin autenticar todavía |
-| git | 2.55.0.windows.3 | |
-| JDK | `C:\Users\imano\.jdks\jbr-17.0.14` (17.0.14) y JBR 21 de Android Studio | AGP 8.5.2 requiere JDK 17: se usa el primero |
-| Android SDK | `C:\Users\imano\AppData\Local\Android\Sdk` | build-tools, platforms, ndk, emulator presentes |
-| Android Studio | `C:\Program Files\Android` | |
-| Gradle wrapper | 8.7 · AGP 8.5.2 · Kotlin 2.0.20 | |
-| adb | Presente, **sin dispositivos conectados** | Relevante para la Fase 7 |
-| Zona horaria del PC | **UTC−04:00 — "Georgetown, La Paz, Manaus, San Juan"** → IANA `America/La_Paz` | Ver duda D3 |
-| **Build de Android** | **`./gradlew :app:testDebugUnitTest` → BUILD SUCCESSFUL en 6m 2s**, 30 tareas, los 28 tests en verde | Solo avisos de `Icons.Filled.ArrowBack`/`TrendingUp` deprecados. **El entorno Android compila**, así que la ruta "Exportar todo (JSON)" de §12 es viable |
-| Cloudflare | `wrangler whoami` → autenticado por OAuth como `imanolhidalgo08@gmail.com`, cuenta `2b01dff5d63dd90ebe52d18cc3914ea7` (la de §5) | `wrangler d1 list` responde `[]`: acceso a D1 correcto y **no hay ninguna base creada todavía** |
+| Herramienta          | Resultado                                                                                                                        | Nota                                                                                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node                 | **v26.7.0**                                                                                                                      | Cumple el requisito de Node 20+. Versión muy reciente; vigilar incompatibilidades con Vite/Vitest.                                                       |
+| npm                  | 11.19.0                                                                                                                          | Disponible                                                                                                                                               |
+| pnpm                 | **no instalado**                                                                                                                 | Los criterios de aceptación de §14 hablan de `pnpm dev/test/build`. Propongo instalarlo (`npm i -g pnpm`) en la Fase 1.                                  |
+| wrangler             | 4.120.0 (vía `npx`)                                                                                                              | Sin autenticar todavía                                                                                                                                   |
+| git                  | 2.55.0.windows.3                                                                                                                 |                                                                                                                                                          |
+| JDK                  | `C:\Users\imano\.jdks\jbr-17.0.14` (17.0.14) y JBR 21 de Android Studio                                                          | AGP 8.5.2 requiere JDK 17: se usa el primero                                                                                                             |
+| Android SDK          | `C:\Users\imano\AppData\Local\Android\Sdk`                                                                                       | build-tools, platforms, ndk, emulator presentes                                                                                                          |
+| Android Studio       | `C:\Program Files\Android`                                                                                                       |                                                                                                                                                          |
+| Gradle wrapper       | 8.7 · AGP 8.5.2 · Kotlin 2.0.20                                                                                                  |                                                                                                                                                          |
+| adb                  | Presente, **sin dispositivos conectados**                                                                                        | Relevante para la Fase 7                                                                                                                                 |
+| Zona horaria del PC  | **UTC−04:00 — "Georgetown, La Paz, Manaus, San Juan"** → IANA `America/La_Paz`                                                   | Ver duda D3                                                                                                                                              |
+| **Build de Android** | **`./gradlew :app:testDebugUnitTest` → BUILD SUCCESSFUL en 6m 2s**, 30 tareas, los 28 tests en verde                             | Solo avisos de `Icons.Filled.ArrowBack`/`TrendingUp` deprecados. **El entorno Android compila**, así que la ruta "Exportar todo (JSON)" de §12 es viable |
+| Cloudflare           | `wrangler whoami` → autenticado por OAuth como `imanolhidalgo08@gmail.com`, cuenta `2b01dff5d63dd90ebe52d18cc3914ea7` (la de §5) | `wrangler d1 list` responde `[]`: acceso a D1 correcto y **no hay ninguna base creada todavía**                                                          |
 
 Los 6 minutos del build son un dato en sí mismo: es un build limpio, pero corriendo sobre `G:\`.
 Ver riesgo R1.
 
 ### Repo
 
-| | |
-|---|---|
-| Ruta local | `G:\My Drive\Personal\[04] Claude\Proyectos\WalletApp\WalletApp` |
-| Remoto real | `https://github.com/Sh4dow8661/WalletApp_Claude.git` |
-| Remoto en el prompt (§1) | `https://github.com/Sh4dow8661/WalletApp` |
-| Ramas remotas | `main`, `claude/festive-wozniak-eZpTm`, `__tmp_probe__` |
-| Rama `claude/app-progressive-web-app-2zwq2z` | **No existía**; creada en local desde `main` |
-| Estado | Limpio, 12 commits, último `f5c63d8` |
-| Secretos | `keystore.properties` y `local.properties` **no versionados** (correcto) |
+|                                              |                                                                                                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ruta local                                   | **`C:\dev\WalletApp`** (movido en la Fase 1; el original en `G:\My Drive\Personal\[04] Claude\Proyectos\WalletApp\WalletApp` queda de respaldo) |
+| Remoto real                                  | `https://github.com/Sh4dow8661/WalletApp_Claude.git`                                                                                            |
+| Remoto en el prompt (§1)                     | `https://github.com/Sh4dow8661/WalletApp`                                                                                                       |
+| Ramas remotas                                | `main`, `claude/festive-wozniak-eZpTm`, `__tmp_probe__`                                                                                         |
+| Rama `claude/app-progressive-web-app-2zwq2z` | **No existía**; creada en local desde `main`                                                                                                    |
+| Estado                                       | Limpio, 12 commits, último `f5c63d8`                                                                                                            |
+| Secretos                                     | `keystore.properties` y `local.properties` **no versionados** (correcto)                                                                        |
 
 ---
 
 ## 2. Lectura del código: §8 verificado archivo por archivo
 
 ### 8.1 Balance — confirmado, sin sorpresas
+
 `TransactionDao.observeAccountBalanceDelta` (`TransactionDao.kt:47-52`) hace exactamente lo descrito:
 suman `INCOME` y `TRANSFER AND isOutgoing=0`; restan `EXPENSE` y `TRANSFER AND isOutgoing=1`.
 `AccountRepositoryImpl:33` compone `initialBalance + delta`.
 `DashboardViewModel:63` filtra por `includeInTotal` para el balance total. Mapea 1:1 a SQL en D1.
 
 ### 8.2 Transferencias — bug confirmado, y es más amplio de lo descrito
+
 `AddEditTransactionViewModel.save()` (`AddEditTransactionViewModel.kt:143-167`):
 
 ```kotlin
@@ -74,11 +76,13 @@ transferencias que ya quedaron descuadradas por este bug** — las patas tendrá
 distintos y no casarán. Lo trato como riesgo abierto en la Fase 7.
 
 ### 8.3 Editar balance actual — confirmado
+
 `AddEditAccountViewModel:51` guarda `transactionsDelta = currentBalance − initialBalance` al cargar,
 y en `save()` (línea 96) persiste `initialBalance = tecleado − delta` solo si `isEditing`.
 Al crear, el campo es el balance inicial tal cual. Portable literalmente.
 
 ### 8.4 Gasto de presupuesto — confirmado
+
 `TransactionBudgetDao.observeSpentForBudgetInRange` (`TransactionBudgetDao.kt:26-41`):
 `EXPENSE` suma, `INCOME` resta, filtrado por `date BETWEEN from AND to`.
 Sin matching automático por categoría/cuenta (eliminado en `MIGRATION_4_5`).
@@ -148,6 +152,7 @@ usuario) resuelve los dos desplazamientos de golpe. Lo mismo aplica a
 `DateUtils.monthRange` — ese sí ya trabaja en local y es correcto.
 
 ### 8.7 Otros — verificados
+
 - **Monedas:** las 20 de `CurrencyFormatter.kt:23-26`, en el orden del prompt. ✓
 - **Signo:** `formatSigned` antepone `-`/`+` al valor absoluto. ✓ (usa `-` ASCII, no `−`)
 - **Iconos:** los 17 de `IconMapper.options` (`CategoryIcon.kt:34-39`). ✓
@@ -162,6 +167,7 @@ usuario) resuelve los dos desplazamientos de golpe. Lo mismo aplica a
 - **Paleta:** `Color.kt` coincide exactamente con §1. ✓
 
 ### Lógica de recibos a portar (§3.3)
+
 `ReceiptParser.kt` (235 líneas), `ReceiptCategorizer.kt` (168) y `ParsedReceipt.kt` (49) son
 Kotlin puro salvo dos dependencias de JVM que hay que sustituir en TS:
 
@@ -173,6 +179,7 @@ Kotlin puro salvo dos dependencias de JVM que hay que sustituir en TS:
 **15 en `ReceiptCategorizerTest`**, 28 en total.
 
 ### Inventario de rutas (para el criterio "las 9 pantallas")
+
 `Screen.kt` declara 13 rutas. Sin `scan-receipt` (fuera de alcance por §3.3) quedan **12**:
 
 - 8 de navegación: `dashboard`, `transactions`, `budgets`, `statistics`, `calendar`,
@@ -188,6 +195,7 @@ paridad funcional con las 12.
 ## 3. Riesgos identificados
 
 ### R1 — El repo vive en Google Drive (**bloqueante, ver duda D1**)
+
 `G:\My Drive\...` es una unidad sincronizada. Un proyecto Node en Drive tiene tres problemas serios:
 
 - **`node_modules`**: decenas de miles de archivos pequeños. Drive intentará sincronizarlos todos.
@@ -201,22 +209,26 @@ mover el repo de trabajo a `C:\dev\WalletApp` (clonando desde GitHub o desde la 
 está limpia y con todo pusheado). El APK y la copia en Drive se pueden conservar como respaldo.
 
 ### R2 — Node 26 es muy nuevo
+
 Vite 7, Vitest 3 y `@cloudflare/vite-plugin` declaran soporte hasta Node 22/24. Node 26 debería
 funcionar, pero si aparece algún fallo raro de dependencias en la Fase 1, la salida es instalar
 Node 22 LTS en paralelo con `nvm-windows` o `fnm`. Lo aviso ahora para que no sorprenda.
 
 ### R3 — Los datos actuales no están accesibles todavía
+
 No hay ningún `wallet_export_*.csv` en el PC ni dispositivo Android conectado por adb. Como el
 entorno Android sí compila, la ruta buena de §12 (añadir "Exportar todo (JSON)" a la app Android,
 compilar el APK e importarlo) está disponible — pero la Fase 7 necesitará que conectes el teléfono
 o que me pases el archivo. Es un bloqueo de la Fase 7, no de las anteriores.
 
 ### R4 — El emparejado de transferencias del importador no puede arreglar el pasado
+
 Explicado en §8.2. Las transferencias que el bug ya descuadró no casarán por (fecha, importe,
 cuentas) y entrarán como dos filas sueltas sin `transfer_group_id`. Habrá que revisarlas a mano.
 El importador debe **reportar explícitamente** cuántas patas quedaron sin pareja, no callárselo.
 
 ### R5 — `deleted_at` + `ON DELETE CASCADE` conviven mal
+
 El esquema de §7 pide borrado lógico con `deleted_at` **y** claves foráneas con `CASCADE`/`SET NULL`.
 Son dos mecanismos distintos: si el borrado real nunca ocurre, las cascadas nunca se disparan y el
 aviso de UI de §8.7 ("borrar una cuenta arrastra sus transacciones") sería mentira.
@@ -263,13 +275,22 @@ a la app Android, te compilo el APK y la PWA lo importa. Necesitaré el teléfon
 
 ## 5. Decisiones tomadas al cerrar la Fase 0
 
-### D1 — Ubicación del repo → **mover a `C:\dev\WalletApp`** *(pendiente de ejecutar)*
+### D1 — Ubicación del repo → **movido a `C:\dev\WalletApp`** ✅
+
 Decidido sacar el repo de Google Drive por los motivos de R1. La copia en Drive y el APK se
-conservan como respaldo; el historial y las ramas viajan intactos.
-**Estado: sin ejecutar.** El movimiento se hará antes de instalar dependencias — es justo el paso
-en el que Drive empieza a doler.
+conservan como respaldo; el historial y las ramas viajaron intactos.
+
+Ejecutado en la Fase 1. La diferencia medida:
+
+| Operación                                    | En `G:\` (Drive) | En `C:\`    |
+| -------------------------------------------- | ---------------- | ----------- |
+| `gradlew :app:testDebugUnitTest` (limpio)    | 6 min 02 s       | —           |
+| `gradlew :app:testDebugUnitTest` (con caché) | 1 min 58 s       | **27 s**    |
+| `git commit` de un solo archivo              | > 2 min          | instantáneo |
+| `pnpm add` de 11 paquetes                    | —                | 8 s         |
 
 ### D2 — Bug mensual de §8.5 → **corregirlo**
+
 En lugar de `periodEnd = periodStart + 1 mes − 1 ms`, el período se cierra **el instante anterior
 al inicio del período siguiente**, calculado con la misma regla de ancla recortada. Así los
 períodos quedan contiguos y todo día pertenece exactamente a uno.
@@ -278,13 +299,85 @@ Los tests de §8.5 incluirán los cuatro huecos documentados arriba como casos d
 PWA un gasto ligeramente mayor que en Android — porque la PWA cuenta días que Android se comía.
 
 ### D3 — Zona horaria por defecto → **`America/Puerto_Rico`**
+
 UTC−4 sin horario de verano, coincide con el huso del PC. Sustituye a `America/Mexico_City` en el
 `DEFAULT` de `user_settings.time_zone` (§7) y en los tests del criterio de §14. Sigue siendo
 seleccionable desde Ajustes.
 
 ### D4 — Remoto → **`github.com/Sh4dow8661/WalletApp_Claude`**
+
 Es el remoto realmente configurado. Prevalece sobre la URL de §1 del prompt.
 
 ### D5 — Gestor de paquetes → **pnpm**
-Se instalará con `npm i -g pnpm` para que los comandos de §14 (`pnpm dev`, `pnpm test`,
+
+Instalado con `npm i -g pnpm` (v11.20.0) para que los comandos de §14 (`pnpm dev`, `pnpm test`,
 `pnpm build`) funcionen literalmente.
+
+---
+
+## 6. Fase 1 — versiones instaladas y desviaciones
+
+### Versiones
+
+| Paquete                         | Versión          | Nota                                              |
+| ------------------------------- | ---------------- | ------------------------------------------------- |
+| react / react-dom               | 19.2.8           | Como pide §4                                      |
+| react-router                    | **7.18.2**       | Ver desviación 1                                  |
+| typescript                      | **6.0.3**        | Ver desviación 2                                  |
+| vite                            | 8.2.1            |                                                   |
+| @cloudflare/vite-plugin         | 1.51.1           |                                                   |
+| wrangler                        | 4.120.0          |                                                   |
+| tailwindcss / @tailwindcss/vite | 4.3.3            | Tailwind v4, configuración CSS-first con `@theme` |
+| hono                            | 4.13.1           |                                                   |
+| drizzle-orm / drizzle-kit       | 0.45.2 / 0.31.10 |                                                   |
+| better-auth                     | 1.6.26           |                                                   |
+| @tanstack/react-query           | 5.101.4          |                                                   |
+| recharts                        | 3.10.1           |                                                   |
+| lucide-react                    | 1.30.0           |                                                   |
+| date-fns / date-fns-tz          | 4.4.0 / 3.2.0    |                                                   |
+| vitest                          | 4.1.10           |                                                   |
+| vite-plugin-pwa                 | 1.3.0            | Instalado, sin activar hasta la Fase 6            |
+| eslint / prettier               | 10.8.1 / 3.9.6   |                                                   |
+
+### Desviación 1 — React Router 7, no 8
+
+pnpm resolvía `react-router@8.3.0`. §4 fija la **v7 en modo declarativo**, así que lo bajé a
+`7.18.2`. No cambio el stack sin consultarte (§0). Si quieres la v8, dilo y lo actualizo antes de
+que haya rutas escritas; después será más caro.
+
+### Desviación 2 — TypeScript 6, no 7
+
+pnpm instalaba `typescript@7.0.2` y **`typescript-eslint` no lo soporta**: `pnpm lint` moría con
+`typescript-eslint does not support TS 7.0`. TS 7 además eliminó `baseUrl`, que rompía los
+tsconfig. Bajé a `typescript@6.0.3`, que es lo último que soporta typescript-eslint. Los `paths`
+se resuelven relativos al propio tsconfig, así que `baseUrl` no hace falta en ninguna de las dos.
+
+### Otras cosas que hubo que resolver
+
+- **`compatibility_date`**: puse la fecha de hoy (2026-08-09) y `vite dev` no arrancaba con
+  `ERR_RUNTIME_FAILURE`: el binario de workerd de esta versión de wrangler solo llega a
+  **2026-08-08**. Fijada ahí, con un comentario en `wrangler.jsonc` para que se pueda subir al
+  actualizar wrangler.
+- **Vitest y el plugin de Cloudflare no conviven en el mismo archivo de config.** Vitest inyecta
+  `resolve.external` con los builtins de Node en todos los entornos y el plugin lo rechaza en el
+  entorno del Worker. Por eso hay un `vitest.config.ts` aparte, sin el plugin. Los tests de
+  integración de la API contra D1 local irán con `@cloudflare/vitest-pool-workers` en la Fase 2.
+- **pnpm 11 ya no lee el campo `pnpm` de `package.json`.** Los permisos de scripts de instalación
+  van en `pnpm-workspace.yaml` (`allowBuilds`). Sin aprobar `workerd`, no hay runtime local.
+
+### Qué se verificó de verdad al cerrar la Fase 1
+
+- `pnpm test` → 9 tests en verde (constantes portadas de la app Android).
+- `pnpm typecheck` → limpio, en los tres proyectos de TS (app, worker, node).
+- `pnpm lint` → limpio.
+- `pnpm build` → construye el Worker (55 kB) y el cliente (194 kB, 61 kB gzip).
+- `pnpm dev` → Vite en `localhost:5173` con el Worker en workerd real.
+  - `GET /api/health` → `{"ok":true,...,"runtime":"Cloudflare-Workers"}`, o sea workerd de verdad,
+    no un mock de Node.
+  - `GET /api/loquesea` → 404.
+  - `GET /transacciones` (ruta que no existe aún) → 200 con `index.html`: el fallback de SPA
+    funciona, que es lo que necesitará React Router.
+  - En el navegador: React monta, hace el fetch y pinta el resultado; **cero errores de consola**;
+    los tokens de Tailwind resuelven a los colores exactos de `Color.kt`
+    (`--color-primary` → `rgb(14,159,110)` = `#0E9F6E`, fondo `rgb(250,250,250)` = `#FAFAFA`);
+    sin scroll horizontal.

@@ -13,6 +13,11 @@ test-results/
 .env.*
 !.env.example
 
+# Caché incremental de tsc -b. worker-configuration.d.ts SÍ se versiona (lo
+# genera `pnpm cf-typegen`, pero versionarlo evita que el typecheck falle en CI
+# antes de haberlo ejecutado).
+*.tsbuildinfo
+
 # === Android heredado (legacy-android/) ===
 *.iml
 .gradle/
