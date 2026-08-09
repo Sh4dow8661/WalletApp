@@ -33,7 +33,7 @@ const CON_FAB = ["/", "/transacciones"];
  * inferior. Es lo que hace la app Android y, además, evita que la barra tape el
  * botón de guardar al final del formulario.
  */
-const RUTAS_FORMULARIO = /^\/(transaccion|presupuesto|cuenta|categoria)\//;
+const RUTAS_FORMULARIO = /^\/(transacciones|presupuestos|cuentas|categorias)\/.+/;
 
 export function MobileLayout() {
   const location = useLocation();
@@ -51,7 +51,7 @@ export function MobileLayout() {
       {mostrarFab && (
         <button
           type="button"
-          onClick={() => void navigate("/transaccion/nueva")}
+          onClick={() => void navigate("/transacciones/nueva")}
           aria-label="Nueva transacción"
           className={cn(
             "fixed right-4 z-30 grid size-14 place-items-center rounded-2xl",

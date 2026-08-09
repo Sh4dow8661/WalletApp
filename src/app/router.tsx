@@ -1,9 +1,10 @@
 import { Loader2 } from "lucide-react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 
-import { useIsMobile } from "./hooks/use-breakpoint.ts";
-import { useSession } from "./lib/auth-client.ts";
+import { useBreakpoint } from "./hooks/use-breakpoint.ts";
+import { DesktopLayout } from "./layouts/DesktopLayout.tsx";
 import { MobileLayout } from "./layouts/MobileLayout.tsx";
+import { useSession } from "./lib/auth-client.ts";
 import { AccountFormScreen, AccountsScreen } from "./routes/Accounts.tsx";
 import { BudgetFormScreen, BudgetsScreen } from "./routes/Budgets.tsx";
 import { CalendarScreen } from "./routes/Calendar.tsx";
@@ -56,16 +57,12 @@ function RedirectIfAuthenticated() {
 /**
  * Elige el layout según el ancho (§10).
  *
- * En la Fase 4 solo existe el móvil; el de escritorio llega en la Fase 5. Hasta
- * entonces se usa el móvil en todos los tamaños, centrado para que no se estire.
+ * Las rutas y los datos son los mismos en los dos; lo único que cambia es la
+ * composición: barra inferior y pantalla completa en móvil, barra lateral y
+ * master-detail a partir de tablet.
  */
 function AppShell() {
-  const esMovil = useIsMobile();
-  return (
-    <div className={esMovil ? undefined : "mx-auto w-full max-w-2xl"}>
-      <MobileLayout />
-    </div>
-  );
+  return useBreakpoint() === "mobile" ? <MobileLayout /> : <DesktopLayout />;
 }
 
 export function AppRouter() {
@@ -80,23 +77,35 @@ export function AppRouter() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route index element={<DashboardScreen />} />
-          <Route path="transacciones" element={<TransactionsScreen />} />
-          <Route path="presupuestos" element={<BudgetsScreen />} />
+
+          {/*
+            Las altas y ediciones son rutas HIJAS de su lista. Así el mismo
+            árbol sirve para las dos composiciones: en escritorio el detalle se
+            pinta al lado de la lista (master-detail), y en móvil la sustituye.
+          */}
+          <Route path="transacciones" element={<TransactionsScreen />}>
+            <Route path="nueva" element={<TransactionFormScreen />} />
+            <Route path=":id" element={<TransactionFormScreen />} />
+          </Route>
+
+          <Route path="presupuestos" element={<BudgetsScreen />}>
+            <Route path="nuevo" element={<BudgetFormScreen />} />
+            <Route path=":id" element={<BudgetFormScreen />} />
+          </Route>
+
+          <Route path="cuentas" element={<AccountsScreen />}>
+            <Route path="nueva" element={<AccountFormScreen />} />
+            <Route path=":id" element={<AccountFormScreen />} />
+          </Route>
+
+          <Route path="categorias" element={<CategoriesScreen />}>
+            <Route path="nueva" element={<CategoryFormScreen />} />
+            <Route path=":id" element={<CategoryFormScreen />} />
+          </Route>
+
           <Route path="estadisticas" element={<StatisticsScreen />} />
           <Route path="calendario" element={<CalendarScreen />} />
           <Route path="ajustes" element={<SettingsScreen />} />
-          <Route path="cuentas" element={<AccountsScreen />} />
-          <Route path="categorias" element={<CategoriesScreen />} />
-
-          {/* Altas y ediciones. `nueva` y `:id` comparten pantalla. */}
-          <Route path="transaccion/nueva" element={<TransactionFormScreen />} />
-          <Route path="transaccion/:id" element={<TransactionFormScreen />} />
-          <Route path="presupuesto/nuevo" element={<BudgetFormScreen />} />
-          <Route path="presupuesto/:id" element={<BudgetFormScreen />} />
-          <Route path="cuenta/nueva" element={<AccountFormScreen />} />
-          <Route path="cuenta/:id" element={<AccountFormScreen />} />
-          <Route path="categoria/nueva" element={<CategoryFormScreen />} />
-          <Route path="categoria/:id" element={<CategoryFormScreen />} />
         </Route>
       </Route>
 

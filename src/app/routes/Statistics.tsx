@@ -15,7 +15,7 @@ import { formatMoney } from "@/lib/money.ts";
 import { MonthSelector } from "../components/domain.tsx";
 import { Card, CardTitle, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import { useCategories, useMonthlyTrend, useSpendByCategory } from "../hooks/api.ts";
-import { useMonth } from "../hooks/use-month.ts";
+import { useMonth } from "../hooks/use-month.tsx";
 import { useTheme } from "../lib/theme.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 
@@ -65,7 +65,13 @@ export function StatisticsScreen() {
       <ScreenHeader title="Estadísticas" />
 
       <div className="space-y-4 p-4">
-        <MonthSelector label={label} onPrevious={previous} onNext={next} />
+        <MonthSelector
+          label={label}
+          onPrevious={previous}
+          onNext={next}
+          // En escritorio el selector de mes está en la cabecera fija.
+          className="xl:hidden"
+        />
 
         <Card className="space-y-3">
           <div className="flex items-baseline justify-between">

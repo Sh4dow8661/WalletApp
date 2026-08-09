@@ -54,8 +54,15 @@ export function createAuth(env: Env, request?: Request) {
     rateLimit: {
       enabled: !("TEST_MIGRATIONS" in env),
       window: 60,
-      max: 30,
+      // El techo general es alto a propósito. `/get-session` se consulta en cada
+      // navegación, así que un límite bajo tumba la sesión de un usuario normal
+      // que se mueve rápido por la app: el cliente recibe 429, cree que no hay
+      // sesión y lo manda al login. Lo que sí interesa apretar son los endpoints
+      // vulnerables a fuerza bruta, y esos tienen su propia regla.
+      max: 200,
       customRules: {
+        // Lectura pura y sin secretos: no tiene sentido limitarla.
+        "/get-session": false,
         "/sign-in/email": { window: 60, max: 5 },
         "/sign-up/email": { window: 300, max: 3 },
         "/forget-password": { window: 300, max: 3 },

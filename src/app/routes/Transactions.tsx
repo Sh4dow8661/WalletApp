@@ -1,4 +1,4 @@
-import { Receipt, Trash2 } from "lucide-react";
+import { Receipt, Search, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -20,8 +20,9 @@ import {
   useTransaction,
   useTransactions,
 } from "../hooks/api.ts";
-import { useMonth, useNow } from "../hooks/use-month.ts";
+import { useMonth, useNow } from "../hooks/use-month.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
+import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 import { TransactionRow } from "./Dashboard.tsx";
@@ -31,6 +32,7 @@ export function TransactionsScreen() {
   const { year, month, label, from, to, currency, previous, next } = useMonth();
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   const categorias = useCategories();
   const cuentas = useAccounts();
@@ -41,12 +43,49 @@ export function TransactionsScreen() {
     accountId: accountId || undefined,
   });
 
-  return (
+  // La búsqueda se aplica en el cliente: son las transacciones de un mes, ya
+  // descargadas, así que filtrar aquí es instantáneo y no gasta una consulta.
+  const termino = normalizar(busqueda);
+  const visibles = (transacciones.data ?? []).filter((tx) => {
+    if (termino === "") return true;
+    const categoria = categorias.data?.find((c) => c.id === tx.categoryId);
+    return (
+      normalizar(tx.note).includes(termino) ||
+      normalizar(categoria?.name ?? "").includes(termino) ||
+      String(tx.amount).includes(termino)
+    );
+  });
+
+  const lista = (
     <div>
       <ScreenHeader title="Transacciones" />
 
       <div className="space-y-3 p-4">
-        <MonthSelector label={label} onPrevious={previous} onNext={next} />
+        <MonthSelector
+          label={label}
+          onPrevious={previous}
+          onNext={next}
+          // En escritorio el selector de mes está en la cabecera fija.
+          className="xl:hidden"
+        />
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 opacity-40" />
+          {/* `data-buscar` es lo que enfoca el atajo `/` del escritorio. */}
+          <input
+            data-buscar
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nota, categoría o importe"
+            aria-label="Buscar transacciones"
+            className={cn(
+              "min-h-11 w-full rounded-xl border border-black/15 bg-white pl-9 pr-3 text-sm",
+              "dark:border-white/20 dark:bg-white/5",
+              "focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30",
+            )}
+          />
+        </div>
 
         {/* Filtros como chips scrollables, según §10. */}
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -66,17 +105,21 @@ export function TransactionsScreen() {
 
         {transacciones.isPending ? (
           <Skeleton className="h-64" />
-        ) : transacciones.data?.length === 0 ? (
+        ) : visibles.length === 0 ? (
           <Card>
             <EmptyState
               icon={Receipt}
               title="Sin movimientos"
-              description={`No hay transacciones en ${label.toLowerCase()} con estos filtros.`}
+              description={
+                termino === ""
+                  ? `No hay transacciones en ${label.toLowerCase()} con estos filtros.`
+                  : `Nada coincide con "${busqueda}".`
+              }
             />
           </Card>
         ) : (
           <Card className="divide-y divide-black/5 p-0 dark:divide-white/10">
-            {transacciones.data?.map((tx) => (
+            {visibles.map((tx) => (
               <TransactionRow
                 key={tx.id}
                 transaction={tx}
@@ -88,13 +131,31 @@ export function TransactionsScreen() {
         )}
 
         <p className="px-1 text-center text-xs opacity-50">
-          {transacciones.data?.length ?? 0} movimiento
-          {transacciones.data?.length === 1 ? "" : "s"} · {year}-
-          {String(month).padStart(2, "0")}
+          {visibles.length} movimiento
+          {visibles.length === 1 ? "" : "s"} · {year}-{String(month).padStart(2, "0")}
         </p>
       </div>
     </div>
   );
+
+  return (
+    <MasterDetail
+      lista={lista}
+      vacio={{
+        titulo: "Ninguna transacción seleccionada",
+        descripcion: "Elige una de la lista para editarla aquí, o crea una nueva.",
+      }}
+    />
+  );
+}
+
+/** Minúsculas y sin acentos, para que "educacion" encuentre "Educación". */
+function normalizar(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/\p{Mn}+/gu, "")
+    .toLowerCase()
+    .trim();
 }
 
 function FiltroChip({
@@ -113,7 +174,8 @@ function FiltroChip({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "h-9 shrink-0 rounded-full border px-3 text-xs font-medium",
+        // 44 px de alto: objetivo táctil de §10.
+        "min-h-11 shrink-0 rounded-full border px-3 text-xs font-medium",
         value
           ? "border-primary bg-primary-light text-primary-dark dark:bg-primary/20 dark:text-primary-light"
           : "border-black/15 dark:border-white/20",
@@ -169,7 +231,7 @@ export function TransactionFormScreen() {
       <div>
         <ScreenHeader
           title={editando ? "Editar transacción" : "Nueva transacción"}
-          onBack={() => void navigate(-1)}
+          onBack={() => void navigate("/transacciones")}
         />
         <div className="space-y-4 p-4">
           <Skeleton className="h-12" />
@@ -280,7 +342,7 @@ function TransactionForm({
         date: dateInputToMillis(date, timeZone),
         budgetIds: type === "TRANSFER" ? [] : budgetIds,
       });
-      void navigate(-1);
+      void navigate("/transacciones");
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrores(
@@ -298,7 +360,7 @@ function TransactionForm({
     <div>
       <ScreenHeader
         title={editando ? "Editar transacción" : "Nueva transacción"}
-        onBack={() => void navigate(-1)}
+        onBack={() => void navigate("/transacciones")}
         action={
           editando ? (
             <button
@@ -479,7 +541,7 @@ function TransactionForm({
         }
         onConfirm={() => {
           if (!id) return;
-          borrar.mutate(id, { onSuccess: () => void navigate(-1) });
+          borrar.mutate(id, { onSuccess: () => void navigate("/transacciones") });
         }}
       />
     </div>

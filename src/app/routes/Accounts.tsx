@@ -22,8 +22,9 @@ import {
 } from "../components/ui/field.tsx";
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useAccounts, useDeleteAccount, useSaveAccount } from "../hooks/api.ts";
-import { useDisplaySettings } from "../hooks/use-month.ts";
+import { useDisplaySettings } from "../hooks/use-month.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
+import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 
@@ -39,14 +40,14 @@ export function AccountsScreen() {
   const navigate = useNavigate();
   const { currency } = useDisplaySettings();
 
-  return (
+  const lista = (
     <div>
       <ScreenHeader
         title="Cuentas"
         onBack={() => void navigate("/ajustes")}
         action={
           <Button asChild size="icon" variant="ghost" aria-label="Nueva cuenta">
-            <Link to="/cuenta/nueva">
+            <Link to="/cuentas/nueva">
               <Plus />
             </Link>
           </Button>
@@ -62,7 +63,7 @@ export function AccountsScreen() {
           </Card>
         ) : (
           cuentas.data?.map((cuenta) => (
-            <Link key={cuenta.id} to={`/cuenta/${cuenta.id}`} className="block">
+            <Link key={cuenta.id} to={`/cuentas/${cuenta.id}`} className="block">
               <Card className="flex items-center gap-3 py-3 transition-colors hover:bg-black/2 dark:hover:bg-white/8">
                 <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
                 <div className="min-w-0 flex-1">
@@ -87,6 +88,16 @@ export function AccountsScreen() {
       </div>
     </div>
   );
+
+  return (
+    <MasterDetail
+      lista={lista}
+      vacio={{
+        titulo: "Ninguna cuenta seleccionada",
+        descripcion: "Elige una de la lista para editarla aquí, o crea una nueva.",
+      }}
+    />
+  );
 }
 
 /**
@@ -109,7 +120,7 @@ export function AccountFormScreen() {
       <div>
         <ScreenHeader
           title={editando ? "Editar cuenta" : "Nueva cuenta"}
-          onBack={() => void navigate(-1)}
+          onBack={() => void navigate("/cuentas")}
         />
         <div className="space-y-4 p-4">
           <Skeleton className="h-20" />
@@ -204,7 +215,7 @@ function AccountForm({
         iconName,
         includeInTotal,
       });
-      void navigate(-1);
+      void navigate("/cuentas");
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrores(
@@ -222,7 +233,7 @@ function AccountForm({
     <div>
       <ScreenHeader
         title={editando ? "Editar cuenta" : "Nueva cuenta"}
-        onBack={() => void navigate(-1)}
+        onBack={() => void navigate("/cuentas")}
         action={
           editando ? (
             <button
@@ -318,7 +329,7 @@ function AccountForm({
         description={`Se eliminarán también TODAS sus transacciones, incluidas las transferencias con otras cuentas. Saldo actual: ${formatMoney(inicial.currentBalance, currency)}.`}
         onConfirm={() => {
           if (!id) return;
-          borrar.mutate(id, { onSuccess: () => void navigate(-1) });
+          borrar.mutate(id, { onSuccess: () => void navigate("/cuentas") });
         }}
       />
     </div>

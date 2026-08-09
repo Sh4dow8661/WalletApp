@@ -577,3 +577,83 @@ Con un usuario real registrado desde la app y datos de prueba creados por el API
 - Sin scroll horizontal y sin errores de consola propios (solo los del WebSocket de HMR, que son
   del navegador embebido).
 - Tema claro y oscuro, ambos comprobados con captura.
+
+---
+
+## 10. Fase 5 — UI de escritorio y adaptativa
+
+La misma app en tres composiciones, con las mismas rutas y los mismos datos:
+
+| Ancho       | Navegación                  | Formularios            | Acción principal     |
+| ----------- | --------------------------- | ---------------------- | -------------------- |
+| < 768 px    | Barra inferior, 5 secciones | Pantalla completa      | Botón flotante       |
+| 768–1279 px | Rail vertical con iconos    | Pantalla completa      | Botón flotante       |
+| ≥ 1280 px   | Barra lateral con etiquetas | Panel junto a la lista | Botón en la cabecera |
+
+### Master-detail sin duplicar rutas
+
+Las altas y ediciones pasan a ser **rutas hijas** de su lista
+(`/transacciones/:id` en vez de `/transaccion/:id`). `MasterDetail` lee el
+detalle con `useOutlet()`, que devuelve `null` cuando no hay ruta hija activa:
+en escritorio lo pinta al lado de la lista y en móvil lo pone en su lugar. Un
+único árbol de rutas, sin estado de "seleccionado" aparte ni navegación
+duplicada por dispositivo.
+
+### Atajos de teclado
+
+`N` nueva transacción · `/` buscar · `←`/`→` cambiar de mes · `?` ayuda ·
+`Esc` cerrar · `G` seguido de `D`/`T`/`P`/`E` para saltar de sección.
+
+Solo se activan cuando el foco no está en un campo de texto —si no, escribir
+"n" en una nota abriría el alta— y se ignoran con Ctrl, Alt o Meta pulsados,
+para no pisar los del navegador. Hay un test que comprueba justamente eso:
+escribir "nomina" en el buscador no debe abrir nada.
+
+### Un bug que apareció al montar la cabecera
+
+El selector de mes de §10 vive en la cabecera fija del escritorio, pero
+`useMonth` tenía un `useState` **local a cada pantalla**. Con eso, mover el mes
+en la cabecera no habría cambiado nada de lo que se ve debajo: cada pantalla
+seguiría con su propio mes.
+
+Ahora el mes es un contexto (`MonthProvider`), que es lo que exige tener un
+control compartido en un sitio y su efecto en otro.
+
+### Otro bug real, encontrado por los tests de Playwright
+
+Los cinco tamaños fallaban con controles de la **pantalla de login** donde debía
+haber contenido. La causa era el rate limiting: el techo general estaba en 30
+peticiones por minuto y `/get-session` se consulta **en cada navegación**. Un
+usuario moviéndose rápido por la app recibía 429, el cliente lo interpretaba
+como "no hay sesión" y lo echaba al login.
+
+Corregido: `/get-session` queda sin límite (es una lectura sin secretos) y el
+techo general sube a 200/min. Lo que sí sigue apretado es lo que importa —
+login 5/min, registro y recuperación 3 cada 5 min.
+
+Es un fallo que solo se manifiesta navegando de verdad por la app; ninguna
+prueba de una sola pantalla lo habría visto.
+
+### Verificación con Playwright
+
+`pnpm test:e2e` levanta el `pnpm dev` real (Vite + workerd + D1 local) y recorre
+**9 rutas en 5 tamaños**, 45 combinaciones. En cada una comprueba que:
+
+- no hay scroll horizontal;
+- ningún control queda fuera del viewport;
+- ningún control baja del objetivo táctil: **44 px en móvil**, como pide §10 (en
+  escritorio el ratón es preciso y basta con que sea clicable).
+
+Y guarda una captura de cada combinación en `tests/e2e/capturas/`.
+
+Ese umbral de 44 px encontró dos controles reales por debajo: los enlaces "Ver
+todo" del dashboard y los chips de filtro de transacciones.
+
+Hay además cuatro tests de comportamiento: que el layout cambie con el ancho,
+que en escritorio se vean lista y detalle a la vez, que los atajos funcionen y
+que escribir en un campo no los dispare.
+
+**Nota sobre la sesión en los tests**: el login se hace una sola vez en un
+proyecto de `setup` y se reutiliza la cookie. Hacer login en cada test chocaría
+con el rate limit de §11 — que es una medida que queremos activa, así que los
+tests se adaptan a ella en vez de desactivarla.

@@ -53,3 +53,8 @@ Desktop.ini
 *.iws
 .idea/
 out/
+
+# Capturas que genera Playwright: se regeneran en cada ejecución.
+tests/e2e/capturas/
+tests/e2e/.auth/
+test-results/

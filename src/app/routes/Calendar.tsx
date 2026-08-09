@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/money.ts";
 import { MonthSelector } from "../components/domain.tsx";
 import { Card, CardTitle, Skeleton } from "../components/ui/card.tsx";
 import { useDailySpend } from "../hooks/api.ts";
-import { useMonth } from "../hooks/use-month.ts";
+import { useMonth } from "../hooks/use-month.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { cn } from "../lib/cn.ts";
 
@@ -45,7 +45,13 @@ export function CalendarScreen() {
       <ScreenHeader title="Calendario" onBack={() => void navigate(-1)} />
 
       <div className="space-y-4 p-4">
-        <MonthSelector label={label} onPrevious={previous} onNext={next} />
+        <MonthSelector
+          label={label}
+          onPrevious={previous}
+          onNext={next}
+          // En escritorio el selector de mes está en la cabecera fija.
+          className="xl:hidden"
+        />
 
         <Card className="space-y-3">
           <div className="flex items-baseline justify-between">

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { BrowserRouter } from "react-router";
 
 import { useSettings } from "./hooks/api.ts";
+import { MonthProvider } from "./hooks/use-month.tsx";
 import { ApiRequestError } from "./lib/api.ts";
 import { ThemeProvider, useTheme } from "./lib/theme.tsx";
 import { AppRouter } from "./router.tsx";
@@ -49,7 +50,11 @@ export function App() {
       <ThemeProvider>
         <BrowserRouter>
           <SincronizarTema />
-          <AppRouter />
+          {/* El mes seleccionado es compartido: en escritorio lo controla la
+              cabecera fija y lo consumen todas las pantallas (§10). */}
+          <MonthProvider>
+            <AppRouter />
+          </MonthProvider>
         </BrowserRouter>
       </ThemeProvider>
     </QueryClientProvider>

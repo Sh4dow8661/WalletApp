@@ -12,7 +12,7 @@ import {
   useDashboard,
   useTransactions,
 } from "../hooks/api.ts";
-import { useMonth } from "../hooks/use-month.ts";
+import { useMonth } from "../hooks/use-month.tsx";
 import { cn } from "../lib/cn.ts";
 import { Icon } from "../lib/icons.tsx";
 
@@ -28,19 +28,23 @@ export function DashboardScreen() {
   const recientes = useTransactions({ from, to, limit: 10 });
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 md:p-6 xl:grid-cols-3">
       {/* Balance total: solo cuentas con includeInTotal (§8.1). */}
-      <Card className="bg-primary text-white dark:bg-primary">
-        <p className="text-xs opacity-80">Balance total</p>
-        {resumen.isPending ? (
-          <Skeleton className="mt-2 h-9 w-40 bg-white/25" />
-        ) : (
-          <p className="mt-1 text-3xl font-bold tabular-nums">
-            {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
-          </p>
-        )}
+      <Card className="bg-primary text-white md:col-span-2 xl:col-span-1 dark:bg-primary">
+        {/* A partir de xl el balance vive en la cabecera fija: repetirlo aquí
+            sería decir lo mismo dos veces en la misma pantalla. */}
+        <div className="xl:hidden">
+          <p className="text-xs opacity-80">Balance total</p>
+          {resumen.isPending ? (
+            <Skeleton className="mt-2 h-9 w-40 bg-white/25" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold tabular-nums">
+              {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
+            </p>
+          )}
+        </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
           <ResumenMes
             icon={ArrowDownLeft}
             label="Ingresos"
@@ -56,10 +60,13 @@ export function DashboardScreen() {
             loading={resumen.isPending}
           />
         </div>
-        <p className="mt-3 text-xs opacity-70">{label}</p>
+        <p className="mt-3 text-xs opacity-70 xl:hidden">{label}</p>
+        <p className="mt-3 hidden text-xs opacity-70 xl:block">
+          Resumen de {label.toLowerCase()}
+        </p>
       </Card>
 
-      <section className="space-y-2">
+      <section className="space-y-2 md:col-span-1">
         <EncabezadoSeccion titulo="Cuentas" enlace="/cuentas" />
         {cuentas.isPending ? (
           <Skeleton className="h-24" />
@@ -96,7 +103,7 @@ export function DashboardScreen() {
         )}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2 md:col-span-1">
         <EncabezadoSeccion titulo="Recientes" enlace="/transacciones" />
         {recientes.isPending ? (
           <Skeleton className="h-32" />
@@ -161,7 +168,8 @@ function EncabezadoSeccion({ titulo, enlace }: { titulo: string; enlace: string 
       <h2 className="text-sm font-semibold opacity-70">{titulo}</h2>
       <Link
         to={enlace}
-        className="flex items-center gap-0.5 text-xs font-medium text-primary hover:underline"
+        // min-h-11 = 44 px: objetivo táctil mínimo de §10.
+        className="-mr-2 flex min-h-11 items-center gap-0.5 px-2 text-xs font-medium text-primary hover:underline"
       >
         Ver todo
         <ChevronRight className="size-3.5" />
@@ -201,7 +209,7 @@ export function TransactionRow({
 
   return (
     <Link
-      to={`/transaccion/${transaction.id}`}
+      to={`/transacciones/${transaction.id}`}
       className="flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5"
     >
       <span

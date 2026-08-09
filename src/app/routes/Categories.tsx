@@ -15,6 +15,7 @@ import { ColorPicker, SelectField, TextField } from "../components/ui/field.tsx"
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useCategories, useDeleteCategory, useSaveCategory } from "../hooks/api.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
+import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 
@@ -26,14 +27,14 @@ export function CategoriesScreen() {
 
   const visibles = (categorias.data ?? []).filter((c) => c.type === tipo);
 
-  return (
+  const lista = (
     <div>
       <ScreenHeader
         title="Categorías"
         onBack={() => void navigate("/ajustes")}
         action={
           <Button asChild size="icon" variant="ghost" aria-label="Nueva categoría">
-            <Link to="/categoria/nueva">
+            <Link to="/categorias/nueva">
               <Plus />
             </Link>
           </Button>
@@ -75,7 +76,7 @@ export function CategoriesScreen() {
             {visibles.map((categoria) => (
               <Link
                 key={categoria.id}
-                to={`/categoria/${categoria.id}`}
+                to={`/categorias/${categoria.id}`}
                 className="flex items-center gap-3 px-4 py-3 first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5"
               >
                 <CategoryIcon
@@ -92,6 +93,16 @@ export function CategoriesScreen() {
         )}
       </div>
     </div>
+  );
+
+  return (
+    <MasterDetail
+      lista={lista}
+      vacio={{
+        titulo: "Ninguna categoría seleccionada",
+        descripcion: "Elige una de la lista para editarla aquí, o crea una nueva.",
+      }}
+    />
   );
 }
 
@@ -120,7 +131,7 @@ export function CategoryFormScreen() {
       <div>
         <ScreenHeader
           title={editando ? "Editar categoría" : "Nueva categoría"}
-          onBack={() => void navigate(-1)}
+          onBack={() => void navigate("/categorias")}
         />
         <div className="space-y-4 p-4">
           <Skeleton className="h-20" />
@@ -169,7 +180,7 @@ function CategoryForm({
 
     try {
       await guardar.mutateAsync({ id, name, type, colorHex, iconName });
-      void navigate(-1);
+      void navigate("/categorias");
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrores(
@@ -187,7 +198,7 @@ function CategoryForm({
     <div>
       <ScreenHeader
         title={editando ? "Editar categoría" : "Nueva categoría"}
-        onBack={() => void navigate(-1)}
+        onBack={() => void navigate("/categorias")}
         action={
           editando ? (
             <button
@@ -260,7 +271,7 @@ function CategoryForm({
         description="Las transacciones que la usaban NO se borran: se quedan sin categoría y siguen contando en los totales."
         onConfirm={() => {
           if (!id) return;
-          borrar.mutate(id, { onSuccess: () => void navigate(-1) });
+          borrar.mutate(id, { onSuccess: () => void navigate("/categorias") });
         }}
       />
     </div>

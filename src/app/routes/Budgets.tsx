@@ -13,8 +13,9 @@ import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import { SelectField, TextField } from "../components/ui/field.tsx";
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useBudgets, useDeleteBudget, useSaveBudget } from "../hooks/api.ts";
-import { useDisplaySettings, useNow } from "../hooks/use-month.ts";
+import { useDisplaySettings, useNow } from "../hooks/use-month.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
+import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
 
 /**
@@ -27,13 +28,13 @@ export function BudgetsScreen() {
   const presupuestos = useBudgets();
   const { currency } = useDisplaySettings();
 
-  return (
+  const lista = (
     <div>
       <ScreenHeader
         title="Presupuestos"
         action={
           <Button asChild size="icon" variant="ghost" aria-label="Nuevo presupuesto">
-            <Link to="/presupuesto/nuevo">
+            <Link to="/presupuestos/nuevo">
               <Plus />
             </Link>
           </Button>
@@ -51,7 +52,7 @@ export function BudgetsScreen() {
               description="Crea uno y enlaza tus gastos para seguirlo."
               action={
                 <Button asChild size="sm">
-                  <Link to="/presupuesto/nuevo">Crear presupuesto</Link>
+                  <Link to="/presupuestos/nuevo">Crear presupuesto</Link>
                 </Button>
               }
             />
@@ -64,11 +65,21 @@ export function BudgetsScreen() {
       </div>
     </div>
   );
+
+  return (
+    <MasterDetail
+      lista={lista}
+      vacio={{
+        titulo: "Ningún presupuesto seleccionado",
+        descripcion: "Elige uno de la lista para editarlo aquí, o crea uno nuevo.",
+      }}
+    />
+  );
 }
 
 function BudgetCard({ budget, currency }: { budget: Budget; currency: string }) {
   return (
-    <Link to={`/presupuesto/${budget.id}`} className="block">
+    <Link to={`/presupuestos/${budget.id}`} className="block">
       <Card className="space-y-3 transition-colors hover:bg-black/2 dark:hover:bg-white/8">
         <div className="flex items-baseline justify-between gap-3">
           <div className="min-w-0">
@@ -149,7 +160,7 @@ export function BudgetFormScreen() {
       <div>
         <ScreenHeader
           title={editando ? "Editar presupuesto" : "Nuevo presupuesto"}
-          onBack={() => void navigate(-1)}
+          onBack={() => void navigate("/presupuestos")}
         />
         <div className="space-y-4 p-4">
           <Skeleton className="h-14" />
@@ -236,7 +247,7 @@ function BudgetForm({
         // Fin del día, para que el último día entre entero en el período.
         endDate: dateInputToMillis(endDate, timeZone) + 86_399_999,
       });
-      void navigate(-1);
+      void navigate("/presupuestos");
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrores(
@@ -254,7 +265,7 @@ function BudgetForm({
     <div>
       <ScreenHeader
         title={editando ? "Editar presupuesto" : "Nuevo presupuesto"}
-        onBack={() => void navigate(-1)}
+        onBack={() => void navigate("/presupuestos")}
         action={
           editando ? (
             <button
@@ -356,7 +367,7 @@ function BudgetForm({
         description="Las transacciones enlazadas no se borran; solo dejan de contar aquí."
         onConfirm={() => {
           if (!id) return;
-          borrar.mutate(id, { onSuccess: () => void navigate(-1) });
+          borrar.mutate(id, { onSuccess: () => void navigate("/presupuestos") });
         }}
       />
     </div>
