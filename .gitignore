@@ -1,37 +1,47 @@
-# Android / Gradle
+# === PWA (Node / Vite / Cloudflare) ===
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
+*.local
+.vite/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+
+# === Android heredado (legacy-android/) ===
 *.iml
 .gradle/
-/local.properties
-/keystore.properties
-/.idea/
-.DS_Store
-/build/
+.kotlin/
+legacy-android/local.properties
+legacy-android/keystore.properties
 /captures/
 .externalNativeBuild/
 .cxx/
+legacy-android/app/src/main/assets/
 
-# Build outputs
+# Salidas de compilación
 **/build/
 *.apk
 *.aab
 *.keystore
 *.jks
+*.class
 
 # Logs
 *.log
 
-# Generated files
-/app/src/main/assets/
-
-# Kotlin
-*.class
-
-# OS
+# Sistema operativo
+.DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# IntelliJ / Android Studio
+# IntelliJ / Android Studio / VS Code
 *.ipr
 *.iws
 .idea/

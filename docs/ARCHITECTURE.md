@@ -261,33 +261,30 @@ a la app Android, te compilo el APK y la PWA lo importa. Necesitaré el teléfon
 
 ---
 
-## 5. Dudas que necesito que resuelvas
+## 5. Decisiones tomadas al cerrar la Fase 0
 
-### D1 — ¿Muevo el repo fuera de Google Drive? (bloqueante)
-Por R1. Mi recomendación: clonar a `C:\dev\WalletApp` y trabajar ahí.
-Alternativa si prefieres mantenerlo en Drive: se puede, pero asume instalaciones lentas y riesgo
-de corrupción de la D1 local.
+### D1 — Ubicación del repo → **mover a `C:\dev\WalletApp`** *(pendiente de ejecutar)*
+Decidido sacar el repo de Google Drive por los motivos de R1. La copia en Drive y el APK se
+conservan como respaldo; el historial y las ramas viajan intactos.
+**Estado: sin ejecutar.** El movimiento se hará antes de instalar dependencias — es justo el paso
+en el que Drive empieza a doler.
 
-### D2 — ¿Porto el bug mensual de §8.5 o lo corrijo?
-El prompt dice "pórtalo literal" y §14 pide que los períodos "coincidan con la app Android", pero
-el original tiene los huecos que demostré arriba. **Mi recomendación: corregirlo**, en la misma
-línea que ya corregimos §8.2 y §8.6, cerrando el período el instante antes del inicio del
-siguiente en vez de con `+1 mes − 1 ms`. Con eso los períodos quedan contiguos y todo día
-pertenece exactamente a uno. Si prefieres paridad exacta con Android, lo porto con el bug y lo
-dejo documentado.
+### D2 — Bug mensual de §8.5 → **corregirlo**
+En lugar de `periodEnd = periodStart + 1 mes − 1 ms`, el período se cierra **el instante anterior
+al inicio del período siguiente**, calculado con la misma regla de ancla recortada. Así los
+períodos quedan contiguos y todo día pertenece exactamente a uno.
+Los tests de §8.5 incluirán los cuatro huecos documentados arriba como casos de regresión, y
+`docs/MIGRATION.md` anotará que los presupuestos mensuales con ancla 29/30/31 pueden mostrar en la
+PWA un gasto ligeramente mayor que en Android — porque la PWA cuenta días que Android se comía.
 
-### D3 — ¿Zona horaria por defecto?
-§7 fija `America/Mexico_City` y §14 pide que las fechas no se corran en ese huso. Pero tu PC está
-en **UTC−04:00 "…, San Juan"**, que es Puerto Rico. Para Puerto Rico el valor IANA correcto es
-`America/Puerto_Rico`. Con `America/Mexico_City` (UTC−6, con horario de verano) los agregados por
-día saldrían corridos justo como el bug que estamos arreglando.
-**Mi recomendación: `America/Puerto_Rico` por defecto**, seleccionable en Ajustes, y los tests de
-zona horaria contra esa zona. Dime si el default debe ser México por alguna razón que no veo.
+### D3 — Zona horaria por defecto → **`America/Puerto_Rico`**
+UTC−4 sin horario de verano, coincide con el huso del PC. Sustituye a `America/Mexico_City` en el
+`DEFAULT` de `user_settings.time_zone` (§7) y en los tests del criterio de §14. Sigue siendo
+seleccionable desde Ajustes.
 
-### D4 — ¿El repo es `WalletApp_Claude`?
-El prompt apunta a `github.com/Sh4dow8661/WalletApp`, pero el remoto configurado es
-`WalletApp_Claude`. Doy por bueno el remoto real salvo que me digas lo contrario.
+### D4 — Remoto → **`github.com/Sh4dow8661/WalletApp_Claude`**
+Es el remoto realmente configurado. Prevalece sobre la URL de §1 del prompt.
 
-### D5 — pnpm
-No está instalado. Lo instalo con `npm i -g pnpm` para poder cumplir los comandos de §14 tal cual,
-salvo que prefieras quedarte en npm (en cuyo caso los criterios pasan a ser `npm run dev/test/build`).
+### D5 — Gestor de paquetes → **pnpm**
+Se instalará con `npm i -g pnpm` para que los comandos de §14 (`pnpm dev`, `pnpm test`,
+`pnpm build`) funcionen literalmente.
