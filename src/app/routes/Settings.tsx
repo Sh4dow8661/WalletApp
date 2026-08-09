@@ -27,6 +27,7 @@ import {
 import { api } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 import { signOut } from "../lib/auth-client.ts";
+import { olvidarSesion } from "../lib/sesion-recordada.ts";
 import { useTheme } from "../lib/theme.tsx";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import type { Transaction } from "@/shared/types.ts";
@@ -143,6 +144,7 @@ export function SettingsScreen() {
           full
           size="lg"
           onClick={() => {
+            olvidarSesion();
             void signOut().then(() => navigate("/login", { replace: true }));
           }}
         >

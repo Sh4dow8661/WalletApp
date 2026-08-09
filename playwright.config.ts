@@ -8,6 +8,8 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Los de PWA van aparte: corren contra el build, no contra dev.
+  testIgnore: /pwa\.spec\.ts/,
   // Los tests comparten la misma D1 local, así que corren en serie: en paralelo
   // se pisarían los datos entre sí.
   workers: 1,

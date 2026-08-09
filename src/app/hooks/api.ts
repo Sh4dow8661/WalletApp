@@ -18,6 +18,7 @@ import type {
 } from "@/shared/types.ts";
 
 import { api, queryString } from "../lib/api.ts";
+import { MUTACIONES } from "./mutaciones.ts";
 
 /**
  * Acceso a datos con TanStack Query.
@@ -151,11 +152,14 @@ export function useSaveAccount() {
   const invalidar = useInvalidarDatos();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ id, ...input }: AccountInput & { id?: string }) =>
-      id
-        ? api.put<{ id: string }>(`/api/accounts/${id}`, input)
-        : api.post<{ id: string }>("/api/accounts", input),
+  return useMutation<
+    { id: string },
+    Error,
+    AccountInput & { id?: string; nuevoId?: string }
+  >({
+    // La función vive en mutaciones.ts, registrada bajo esta clave: es lo que
+    // permite reanudar la escritura tras una recarga (§9).
+    mutationKey: MUTACIONES.guardarCuenta,
     onSuccess: () => {
       invalidar();
       void queryClient.invalidateQueries({ queryKey: claves.categorias });
@@ -165,8 +169,8 @@ export function useSaveAccount() {
 
 export function useDeleteAccount() {
   const invalidar = useInvalidarDatos();
-  return useMutation({
-    mutationFn: (id: string) => api.del<{ id: string }>(`/api/accounts/${id}`),
+  return useMutation<{ id: string }, Error, string>({
+    mutationKey: MUTACIONES.borrarCuenta,
     onSuccess: invalidar,
   });
 }
@@ -175,11 +179,12 @@ export function useSaveCategory() {
   const queryClient = useQueryClient();
   const invalidar = useInvalidarDatos();
 
-  return useMutation({
-    mutationFn: ({ id, ...input }: CategoryInput & { id?: string }) =>
-      id
-        ? api.put<{ id: string }>(`/api/categories/${id}`, input)
-        : api.post<{ id: string }>("/api/categories", input),
+  return useMutation<
+    { id: string },
+    Error,
+    CategoryInput & { id?: string; nuevoId?: string }
+  >({
+    mutationKey: MUTACIONES.guardarCategoria,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: claves.categorias });
       invalidar();
@@ -191,8 +196,8 @@ export function useDeleteCategory() {
   const queryClient = useQueryClient();
   const invalidar = useInvalidarDatos();
 
-  return useMutation({
-    mutationFn: (id: string) => api.del<{ id: string }>(`/api/categories/${id}`),
+  return useMutation<{ id: string }, Error, string>({
+    mutationKey: MUTACIONES.borrarCategoria,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: claves.categorias });
       invalidar();
@@ -202,47 +207,48 @@ export function useDeleteCategory() {
 
 export function useSaveTransaction() {
   const invalidar = useInvalidarDatos();
-  return useMutation({
-    mutationFn: ({ id, ...input }: TransactionInput & { id?: string }) =>
-      id
-        ? api.put<{ id: string }>(`/api/transactions/${id}`, input)
-        : api.post<{ id: string }>("/api/transactions", input),
+  return useMutation<
+    { id: string },
+    Error,
+    TransactionInput & { id?: string; nuevoId?: string }
+  >({
+    mutationKey: MUTACIONES.guardarTransaccion,
     onSuccess: invalidar,
   });
 }
 
 export function useDeleteTransaction() {
   const invalidar = useInvalidarDatos();
-  return useMutation({
-    mutationFn: (id: string) => api.del<{ id: string }>(`/api/transactions/${id}`),
+  return useMutation<{ id: string }, Error, string>({
+    mutationKey: MUTACIONES.borrarTransaccion,
     onSuccess: invalidar,
   });
 }
 
 export function useSaveBudget() {
   const invalidar = useInvalidarDatos();
-  return useMutation({
-    mutationFn: ({ id, ...input }: BudgetInput & { id?: string }) =>
-      id
-        ? api.put<{ id: string }>(`/api/budgets/${id}`, input)
-        : api.post<{ id: string }>("/api/budgets", input),
+  return useMutation<
+    { id: string },
+    Error,
+    BudgetInput & { id?: string; nuevoId?: string }
+  >({
+    mutationKey: MUTACIONES.guardarPresupuesto,
     onSuccess: invalidar,
   });
 }
 
 export function useDeleteBudget() {
   const invalidar = useInvalidarDatos();
-  return useMutation({
-    mutationFn: (id: string) => api.del<{ id: string }>(`/api/budgets/${id}`),
+  return useMutation<{ id: string }, Error, string>({
+    mutationKey: MUTACIONES.borrarPresupuesto,
     onSuccess: invalidar,
   });
 }
 
 export function useSaveSettings() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: UserSettingsInput) =>
-      api.put<UserSettings>("/api/settings", input),
+  return useMutation<UserSettings, Error, UserSettingsInput>({
+    mutationKey: MUTACIONES.guardarAjustes,
     onSuccess: (ajustes) => {
       queryClient.setQueryData(claves.ajustes, ajustes);
       // La zona horaria cambia TODOS los agregados por día y por mes (§8.6).

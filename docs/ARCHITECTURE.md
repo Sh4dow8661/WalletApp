@@ -657,3 +657,75 @@ que escribir en un campo no los dispare.
 proyecto de `setup` y se reutiliza la cookie. Hacer login en cada test chocaría
 con el rate limit de §11 — que es una medida que queremos activa, así que los
 tests se adaptan a ella en vez de desactivarla.
+
+---
+
+## 11. Fase 6 — PWA
+
+### Lo que quedó montado
+
+- **Manifest** con todo lo de §9: nombre, `display_override`, colores, `lang`,
+  `dir`, `orientation`, iconos de 192 y 512 más uno _maskable_, capturas
+  `narrow` y `wide`, y los tres accesos directos.
+- **Iconos** generados desde el trazado original de `ic_launcher_foreground.xml`
+  con `scripts/generar-iconos.mjs`. El _maskable_ lleva más margen porque el
+  lanzador solo garantiza el 80% central; sin ese margen, un icono circular
+  cortaría la cartera.
+- **Service worker** (Workbox): precache del shell, `NetworkFirst` para `/api/*`,
+  `CacheFirst` para iconos y capturas, y **`NetworkOnly` para `/api/auth/*`** —
+  servir una respuesta vieja de sesión podría dejar entrar con una sesión ya
+  cerrada.
+- **Aviso de versión nueva** en vez de recarga silenciosa (`registerType: "prompt"`).
+- **Caché persistida en IndexedDB** y **cola de escrituras offline**.
+
+### La cola offline usa TanStack Query, no una implementación propia
+
+Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se
+persiste junto a la caché y se reanuda al volver la conexión, incluso si la app
+se cerró por medio. Para que sobreviva a una recarga, lo que se guarda son la
+clave y las variables — la función no — así que las funciones están registradas
+por clave en `src/app/hooks/mutaciones.ts`.
+
+Las escrituras son **idempotentes**: el identificador lo genera el cliente
+(`useIdNuevo`, UUID v7) y viaja en el cuerpo del POST, así que reenviar una
+creación pendiente no crea un duplicado.
+
+### Dos bugs que solo aparecen sin red
+
+**1. El guard expulsaba al login al abrir sin conexión.** `useSession` no puede
+preguntarle al servidor, devuelve "no hay sesión" y el guard mandaba a `/login`:
+la app quedaba inservible offline, justo lo contrario de lo que pide §9. Peor
+aún, de camino borraba la marca local de sesión.
+
+La corrección distingue **"el servidor dice que no estás autenticado"** de **"no
+he podido preguntárselo"**, mirando el `error` de la consulta y no solo
+`navigator.onLine` (hay redes que responden pero no llegan). Si no se pudo
+comprobar y consta que había sesión, se enseña la app con los datos guardados.
+No abre ninguna puerta: el servidor sigue validando cada petición, así que sin
+cookie válida no llegaría ningún dato.
+
+**2. Las consultas restauradas no se mostraban.** Con el `networkMode: "online"`
+por defecto, al abrir sin red las consultas quedan _pausadas_ y la pantalla se
+queda con los valores por defecto aunque IndexedDB tenga los datos. También van
+en `offlineFirst`.
+
+### Verificación
+
+`pnpm test:e2e:pwa` corre **7 tests contra el build servido** (no contra
+`vite dev`, donde el service worker está desactivado a propósito para que el HMR
+funcione). Comprueban el manifest campo a campo, que los iconos y capturas se
+sirven de verdad, que el SW precachea, que **la app abre sin red mostrando los
+datos guardados y el aviso correspondiente**, y que **una categoría creada sin
+conexión llega al servidor al recuperarla**.
+
+### Lo que no se pudo verificar
+
+**Lighthouse no arranca en esta máquina**: falla con `EPERM` al limpiar su
+carpeta temporal de perfil, antes de emitir el informe. Se probó con el Chrome
+del sistema y con perfil explícito, con el mismo resultado; es una restricción
+del entorno, no del proyecto.
+
+Los criterios _funcionales_ de §9 sí están verificados por los tests de arriba.
+Lo que queda pendiente son los **números** (Performance ≥ 90, Accessibility ≥ 95).
+Se pueden sacar en un clic desde Chrome → DevTools → Lighthouse contra
+`pnpm preview`, y conviene hacerlo antes de dar por buena la Fase 8.

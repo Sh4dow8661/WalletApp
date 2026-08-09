@@ -1,10 +1,13 @@
+import { onlineManager } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 
 import { useBreakpoint } from "./hooks/use-breakpoint.ts";
 import { DesktopLayout } from "./layouts/DesktopLayout.tsx";
 import { MobileLayout } from "./layouts/MobileLayout.tsx";
 import { useSession } from "./lib/auth-client.ts";
+import { habiaSesion, olvidarSesion, recordarSesion } from "./lib/sesion-recordada.ts";
 import { AccountFormScreen, AccountsScreen } from "./routes/Accounts.tsx";
 import { BudgetFormScreen, BudgetsScreen } from "./routes/Budgets.tsx";
 import { CalendarScreen } from "./routes/Calendar.tsx";
@@ -36,20 +39,52 @@ function Cargando() {
  * está en el servidor, donde toda ruta `/api` valida la sesión.
  */
 function RequireAuth() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, error } = useSession();
   const location = useLocation();
 
+  // Se recuerda que hubo sesión para poder abrir la app sin red (§9).
+  useEffect(() => {
+    if (session) recordarSesion();
+  }, [session]);
+
+  /**
+   * "El servidor dice que no estás autenticado" y "no he podido preguntárselo"
+   * son cosas distintas, y confundirlas deja la app inservible sin red.
+   *
+   * No basta con mirar `navigator.onLine`: hay redes que responden pero no
+   * llegan, y el propio `setOffline` de las pruebas no siempre lo actualiza. La
+   * señal fiable es que la consulta de sesión haya fallado.
+   */
+  const noSePudoComprobar = error !== null || !onlineManager.isOnline();
+
   if (isPending) return <Cargando />;
+
   if (!session) {
+    // Si no se pudo comprobar y consta que había sesión, se enseña la app con
+    // los datos guardados. El servidor sigue validando cada petición, así que
+    // esto no abre ninguna puerta: sin cookie válida no llegaría ningún dato.
+    if (noSePudoComprobar && habiaSesion()) return <Outlet />;
+
+    // Aquí sí: el servidor ha contestado que no hay sesión.
+    olvidarSesion();
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+
   return <Outlet />;
 }
 
 /** Si ya hay sesión, las pantallas de acceso no tienen sentido. */
 function RedirectIfAuthenticated() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, error } = useSession();
+
   if (isPending) return <Cargando />;
+
+  // Sin poder comprobar la sesión, se manda a la app si consta que la había;
+  // allí el guard decidirá con la misma información.
+  if (!session && (error !== null || !onlineManager.isOnline()) && habiaSesion()) {
+    return <Navigate to="/" replace />;
+  }
+
   if (session) return <Navigate to="/" replace />;
   return <Outlet />;
 }

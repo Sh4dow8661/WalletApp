@@ -14,6 +14,7 @@ import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import { ColorPicker, SelectField, TextField } from "../components/ui/field.tsx";
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useCategories, useDeleteCategory, useSaveCategory } from "../hooks/api.ts";
+import { useIdNuevo } from "../hooks/use-id-nuevo.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
@@ -171,6 +172,8 @@ function CategoryForm({
   const [type, setType] = useState<CategoryType>(inicial.type);
   const [colorHex, setColorHex] = useState<string>(inicial.colorHex);
   const [iconName, setIconName] = useState<IconName>(inicial.iconName);
+  // Id generado en cliente: hace idempotente la creación (§9).
+  const idNuevo = useIdNuevo();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
 
@@ -179,7 +182,7 @@ function CategoryForm({
     setErrores({});
 
     try {
-      await guardar.mutateAsync({ id, name, type, colorHex, iconName });
+      await guardar.mutateAsync({ id, nuevoId: idNuevo, name, type, colorHex, iconName });
       void navigate("/categorias");
     } catch (error) {
       if (error instanceof ApiRequestError) {

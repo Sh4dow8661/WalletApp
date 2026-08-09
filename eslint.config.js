@@ -61,9 +61,9 @@ export default tseslint.config(
     },
   },
 
-  // Archivos de configuración que corren en Node.
+  // Configuración, scripts de apoyo y tests: corren en Node.
   {
-    files: ["*.config.{ts,js}", "tests/**/*.ts"],
+    files: ["*.config.{ts,js}", "scripts/**/*.{mjs,js,ts}", "tests/**/*.ts"],
     languageOptions: {
       globals: globals.node,
     },

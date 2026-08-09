@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <!--
+    Icono de la app: la misma cartera de `ic_launcher_foreground.xml` de Android,
+    sobre el verde de la marca (#0E9F6E, Primary en ui/theme/Color.kt).
+    Los trazados son los del original, sin redibujar nada.
+  -->
+  <rect width="108" height="108" fill="#0E9F6E" />
+  <path fill="#FFFFFF" d="M30,42 L78,42 L78,72 C78,75.3 75.3,78 72,78 L36,78 C32.7,78 30,75.3 30,72 Z" />
+  <path fill="#FFFFFF" d="M36,36 L72,36 L72,42 L36,42 Z" />
+  <circle cx="62" cy="58" r="4" fill="#0E9F6E" />
+</svg>

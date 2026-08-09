@@ -14,6 +14,7 @@ import { SelectField, TextField } from "../components/ui/field.tsx";
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useBudgets, useDeleteBudget, useSaveBudget } from "../hooks/api.ts";
 import { useDisplaySettings, useNow } from "../hooks/use-month.tsx";
+import { useIdNuevo } from "../hooks/use-id-nuevo.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
@@ -224,6 +225,8 @@ function BudgetForm({
   const [recurrence, setRecurrence] = useState<Budget["recurrence"]>(inicial.recurrence);
   const [startDate, setStartDate] = useState(inicial.startDate);
   const [endDate, setEndDate] = useState(inicial.endDate);
+  // Id generado en cliente: hace idempotente la creación (§9).
+  const idNuevo = useIdNuevo();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
 
@@ -240,6 +243,7 @@ function BudgetForm({
     try {
       await guardar.mutateAsync({
         id,
+        nuevoId: idNuevo,
         name,
         amount: importe,
         recurrence,

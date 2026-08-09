@@ -23,6 +23,7 @@ import {
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
 import { useAccounts, useDeleteAccount, useSaveAccount } from "../hooks/api.ts";
 import { useDisplaySettings } from "../hooks/use-month.tsx";
+import { useIdNuevo } from "../hooks/use-id-nuevo.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
@@ -186,6 +187,8 @@ function AccountForm({
   const [colorHex, setColorHex] = useState<string>(inicial.colorHex);
   const [iconName, setIconName] = useState<IconName>(inicial.iconName);
   const [includeInTotal, setIncludeInTotal] = useState(inicial.includeInTotal);
+  // Id generado en cliente: hace idempotente la creación (§9).
+  const idNuevo = useIdNuevo();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
 
@@ -208,6 +211,7 @@ function AccountForm({
     try {
       await guardar.mutateAsync({
         id,
+        nuevoId: idNuevo,
         name,
         type,
         balance: importe,

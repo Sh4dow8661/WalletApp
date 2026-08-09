@@ -21,6 +21,7 @@ import {
   useTransactions,
 } from "../hooks/api.ts";
 import { useMonth, useNow } from "../hooks/use-month.tsx";
+import { useIdNuevo } from "../hooks/use-id-nuevo.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { MasterDetail } from "../layouts/MasterDetail.tsx";
 import { ApiRequestError } from "../lib/api.ts";
@@ -305,6 +306,8 @@ function TransactionForm({
   const [note, setNote] = useState(inicial.note);
   const [date, setDate] = useState(inicial.date);
   const [budgetIds, setBudgetIds] = useState<string[]>(inicial.budgetIds);
+  // Id generado en cliente: hace idempotente la creación (§9).
+  const idNuevo = useIdNuevo();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
 
@@ -333,6 +336,7 @@ function TransactionForm({
     try {
       await guardar.mutateAsync({
         id,
+        nuevoId: idNuevo,
         amount: importe,
         type,
         accountId,
