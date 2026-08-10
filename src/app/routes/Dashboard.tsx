@@ -8,16 +8,14 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 
-import {
-  availableBalance,
-  hasActiveBuffer,
-  summarizeAvailability,
-} from "@/lib/colchon.ts";
+import { availableBalance, hasActiveBuffer } from "@/lib/colchon.ts";
 import { cardDebt, isCreditCard, summarizeAccounts } from "@/lib/credit.ts";
 import { formatMoney } from "@/lib/money.ts";
+import { summarizeNetWorth } from "@/lib/patrimonio.ts";
 import type { Category, Transaction } from "@/shared/types.ts";
 
 import { BarraUtilizacion } from "../components/credito.tsx";
+import { DisponibleReal } from "../components/patrimonio.tsx";
 import { CategoryIcon, MoneyText } from "../components/domain.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import {
@@ -41,7 +39,7 @@ export function DashboardScreen() {
   const categorias = useCategories();
   const recientes = useTransactions({ from, to, limit: 10 });
   const resumenCuentas = summarizeAccounts(cuentas.data ?? []);
-  const disponibilidad = summarizeAvailability(cuentas.data ?? []);
+  const patrimonio = summarizeNetWorth(cuentas.data ?? []);
 
   return (
     <div className="space-y-4 p-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 md:p-6 xl:grid-cols-3">
@@ -50,30 +48,13 @@ export function DashboardScreen() {
         {/* A partir de xl el balance vive en la cabecera fija: repetirlo aquí
             sería decir lo mismo dos veces en la misma pantalla. */}
         <div className="xl:hidden">
-          {/* Con colchones, la cifra grande es el DISPONIBLE real: es lo que se
-              puede gastar. Lo retenido se dice justo debajo para que no
-              parezca que ha desaparecido dinero. Sin colchones no cambia nada
-              respecto a antes. */}
-          <p className="text-xs opacity-80">
-            {disponibilidad.hasAnyBuffer ? "Disponible real" : "Balance total"}
-          </p>
-          {resumen.isPending ? (
+          {cuentas.isPending ? (
             <Skeleton className="mt-2 h-9 w-40 bg-white/25" />
           ) : (
-            <p className="mt-1 text-3xl font-bold tabular-nums">
-              {formatMoney(
-                disponibilidad.hasAnyBuffer
-                  ? disponibilidad.available
-                  : (resumen.data?.totalBalance ?? 0),
-                currency,
-              )}
-            </p>
-          )}
-          {disponibilidad.hasAnyBuffer && (
-            <p className="mt-0.5 text-xs opacity-80">
-              {formatMoney(disponibilidad.reserved, currency)} retenidos en colchones ·{" "}
-              {formatMoney(resumen.data?.totalBalance ?? 0, currency)} en total
-            </p>
+            // `sobreColor`: aquí el texto va en blanco sobre el verde, así que
+            // un negativo no puede pintarse de rojo — no se leería. Se
+            // distingue por el signo y por el desglose.
+            <DisponibleReal patrimonio={patrimonio} currency={currency} sobreColor />
           )}
         </div>
 

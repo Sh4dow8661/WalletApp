@@ -1011,6 +1011,36 @@ nunca.
 
 La barra de scroll solo aparece cuando hace falta (`auto`, no `scroll`).
 
+#### Segunda pasada: el scroll no puede robar ancho
+
+El primer arreglo trajo dos problemas nuevos, vistos en producción y no por los
+tests: **rótulos recortados** y una **barra de scroll horizontal** con flechas.
+
+Tres causas, las tres arregladas:
+
+1. **`overflow-x: hidden`.** Con `auto` en los dos ejes, un ítem que se pasa
+   cuatro píxeles saca barra horizontal y deja el menú desplazable de lado — y
+   al desplazarse, los rótulos se cortan **por la izquierda**.
+2. **`scroll-sin-barra`** (utilidad nueva en `styles.css`). La barra clásica de
+   Windows ocupa unos 15 px **reales** y se los quita al contenido; en una barra
+   estrecha eso basta para recortar los rótulos. Se oculta y el scroll sigue
+   funcionando con rueda, teclado y dedo.
+3. **`min-w-0` en el enlace y `max-w-full` en el rótulo.** Sin `min-w-0`,
+   `truncate` no llega a activarse nunca: el `white-space: nowrap` que lleva
+   dentro fija el ancho mínimo al del texto entero, así que era el propio ítem
+   el que ensanchaba la barra.
+
+Además, el rail estrecho usa ahora **rótulos cortos** (`corto` en `SECCIONES`),
+que es lo que decía el comentario del layout desde el principio: en 55 px útiles
+"Transacciones" no cabe de ninguna manera. El nombre completo sigue en el
+`title`.
+
+> **Por qué se escapó a los tests:** en un Chromium headless las barras de
+> scroll son **overlay** y no roban ancho (medido: 0 px), mientras que las de
+> Windows sí. Un test de DOM puede dar verde y el usuario ver los rótulos
+> cortados igualmente. Por eso el diagnóstico se hace con captura real
+> (`scripts/diagnostico-sidebar.mjs`), no solo midiendo.
+
 ### El círculo del switch se salía de la pista
 
 Iba con `translate-x-5.5` y **sin `left`**, así que su posición dependía de dónde
@@ -1023,6 +1053,45 @@ cuatro lados en los dos estados.
 
 Se arregló en `SwitchField`, así que vale para todos los interruptores de la app,
 no solo para el que se vio.
+
+---
+
+## 18. «Disponible real»: una sola cuenta de la verdad
+
+Antes cada pantalla sumaba lo suyo y el mismo concepto salía con cifras
+distintas. Ahora la cabecera, el Dashboard y la pantalla de Cuentas llaman las
+tres a `summarizeNetWorth` (`src/lib/patrimonio.ts`), así que **no pueden
+discrepar** por construcción.
+
+### Dos preguntas distintas, dos números
+
+    puedoGastarHoy = activos − colchones
+    disponibleReal = activos − colchones − deuda de tarjetas
+
+La primera contesta «cuánto puedo gastar hoy sin tocar mis colchones». La
+segunda, «cuánto tengo de verdad»: ahí la deuda de la tarjeta cuenta, porque es
+dinero que ya se debe aunque todavía no haya salido de la cuenta. Se enseñan
+**las dos**, porque perder la primera dejaba sin respuesta una pregunta que se
+hace a diario.
+
+`disponibleReal` puede salir muy negativo, y se muestra tal cual: taparlo sería
+lo contrario de para lo que sirve. En rojo, salvo en la tarjeta verde del
+Dashboard, donde el texto ya va en blanco y el rojo no se leería — ahí lo
+distinguen el signo y el desglose.
+
+### `includeInTotal` también manda en las tarjetas
+
+Una tarjeta excluida del total **no suma deuda**, igual que una cuenta excluida
+no suma saldo. Si la deuda contase pero el saldo no, el mismo flag significaría
+cosas distintas según el tipo de cuenta, que es justo la clase de sorpresa que
+hay que evitar. La tarjeta sigue apareciendo en su lista con su utilización.
+
+### Desglose auditable
+
+Bajo la cifra hay un desplegable con **activos − colchones − deuda = disponible
+real**. Las líneas que valen cero se omiten, para que quien no usa colchones ni
+tiene tarjetas no vea ruido. Hay un e2e que comprueba que la resta cuadra y que
+las tres pantallas enseñan la misma cifra.
 
 ### La cola offline usa TanStack Query, no una implementación propia
 

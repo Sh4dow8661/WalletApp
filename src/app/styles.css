@@ -44,6 +44,24 @@
    del usuario (LIGHT/DARK/SYSTEM) en vez de depender solo del sistema. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/**
+ * Scroll que NO le roba ancho al contenido.
+ *
+ * La barra de scroll clásica de Windows ocupa unos 15 px reales y se los quita
+ * al contenido. En una barra lateral estrecha eso basta para que los rótulos se
+ * recorten y para que aparezca scroll horizontal. En un Chromium headless las
+ * barras son overlay y no roban nada, así que este fallo NO se ve en los tests
+ * automáticos por muy bien que se mida el DOM: hay que mirarlo en Windows.
+ *
+ * Se oculta la barra y se deja el scroll funcionando con rueda, teclado y dedo.
+ */
+@utility scroll-sin-barra {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   html {
     background-color: var(--color-surface-light);

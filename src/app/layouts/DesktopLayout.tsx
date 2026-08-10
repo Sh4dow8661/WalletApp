@@ -14,12 +14,12 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 
-import { summarizeAvailability } from "@/lib/colchon.ts";
-import { formatMoney } from "@/lib/money.ts";
+import { summarizeNetWorth } from "@/lib/patrimonio.ts";
 
+import { DisponibleReal } from "../components/patrimonio.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { ResponsiveDialog } from "../components/ui/responsive-dialog.tsx";
-import { useAccounts, useDashboard } from "../hooks/api.ts";
+import { useAccounts } from "../hooks/api.ts";
 import { useBreakpoint } from "../hooks/use-breakpoint.ts";
 import { type Shortcut, useShortcuts } from "../hooks/use-shortcuts.ts";
 import { useMonth } from "../hooks/use-month.tsx";
@@ -34,29 +34,63 @@ import { cn } from "../lib/cn.ts";
  * monitor ancho.
  */
 
+/**
+ * `corto` es el rótulo del rail estrecho.
+ *
+ * En 80 px de barra quedan unos 55 útiles, donde a 10 px de fuente entran diez
+ * caracteres largos. "Transacciones" no cabe ahí de ninguna manera: o se
+ * trunca con puntos suspensivos, o ensancha la barra y saca scroll horizontal.
+ * Con una etiqueta corta se lee entera, que es lo que se quería desde el
+ * principio. El nombre completo sigue estando en el `title`.
+ */
 const SECCIONES = [
-  { to: "/", label: "Inicio", icon: LayoutDashboard, end: true },
-  { to: "/transacciones", label: "Transacciones", icon: Receipt, end: false },
-  { to: "/presupuestos", label: "Presupuestos", icon: PieChart, end: false },
-  { to: "/estadisticas", label: "Estadísticas", icon: BarChart3, end: false },
-  { to: "/calendario", label: "Calendario", icon: CalendarDays, end: false },
+  { to: "/", label: "Inicio", corto: "Inicio", icon: LayoutDashboard, end: true },
+  {
+    to: "/transacciones",
+    label: "Transacciones",
+    corto: "Movim.",
+    icon: Receipt,
+    end: false,
+  },
+  {
+    to: "/presupuestos",
+    label: "Presupuestos",
+    corto: "Presup.",
+    icon: PieChart,
+    end: false,
+  },
+  {
+    to: "/estadisticas",
+    label: "Estadísticas",
+    corto: "Estad.",
+    icon: BarChart3,
+    end: false,
+  },
+  {
+    to: "/calendario",
+    label: "Calendario",
+    corto: "Calend.",
+    icon: CalendarDays,
+    end: false,
+  },
 ] as const;
 
 const SECUNDARIAS = [
-  { to: "/gastos-fijos", label: "Gastos fijos", icon: Repeat },
-  { to: "/cuentas", label: "Cuentas", icon: Wallet },
-  { to: "/categorias", label: "Categorías", icon: Tag },
-  { to: "/ajustes", label: "Ajustes", icon: Settings },
+  { to: "/gastos-fijos", label: "Gastos fijos", corto: "Fijos", icon: Repeat },
+  { to: "/cuentas", label: "Cuentas", corto: "Cuentas", icon: Wallet },
+  { to: "/categorias", label: "Categorías", corto: "Categ.", icon: Tag },
+  { to: "/ajustes", label: "Ajustes", corto: "Ajustes", icon: Settings },
 ] as const;
 
 export function DesktopLayout() {
   const navigate = useNavigate();
   const breakpoint = useBreakpoint();
   const esEscritorio = breakpoint === "desktop";
-  const { year, month, label, currency, previous, next } = useMonth();
-  const resumen = useDashboard(year, month);
+  const { label, currency, previous, next } = useMonth();
+  // La cabecera ya no lee el balance del dashboard: la cifra sale de las
+  // cuentas, igual que en las otras dos pantallas, para que no puedan discrepar.
   const cuentas = useAccounts();
-  const disponibilidad = summarizeAvailability(cuentas.data ?? []);
+  const patrimonio = summarizeNetWorth(cuentas.data ?? []);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   const atajos: Shortcut[] = [
@@ -152,7 +186,15 @@ export function DesktopLayout() {
         */}
         <div
           data-menu-secciones
-          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+          className={cn(
+            "flex min-h-0 flex-1 flex-col gap-1 overscroll-contain",
+            // Vertical sí, horizontal NUNCA: con `auto` en los dos ejes, un
+            // ítem que se pasa cuatro píxeles saca una barra horizontal con sus
+            // flechas y deja el menú desplazable de lado.
+            "overflow-y-auto overflow-x-hidden",
+            // Y la barra no puede robar ancho, o los rótulos se recortan.
+            "scroll-sin-barra",
+          )}
         >
           {SECCIONES.map((seccion) => (
             <ItemNav key={seccion.to} {...seccion} ancho={esEscritorio} />
@@ -198,21 +240,9 @@ export function DesktopLayout() {
             esEscritorio ? "px-6" : "px-4",
           )}
         >
-          <div className="min-w-0">
-            {/* Con colchones se enseña el disponible, igual que el dashboard:
-                las dos cabeceras no pueden decir cifras distintas. */}
-            <p className="text-xs opacity-60">
-              {disponibilidad.hasAnyBuffer ? "Disponible real" : "Balance total"}
-            </p>
-            <p className="text-xl font-bold tabular-nums">
-              {formatMoney(
-                disponibilidad.hasAnyBuffer
-                  ? disponibilidad.available
-                  : (resumen.data?.totalBalance ?? 0),
-                currency,
-              )}
-            </p>
-          </div>
+          {/* La misma cifra y el mismo desglose que el Dashboard y Cuentas:
+              las tres pantallas leen de `summarizeNetWorth`. */}
+          <DisponibleReal patrimonio={patrimonio} currency={currency} compacto />
 
           {/* Selector de mes siempre visible, como pide §10. */}
           <div className="ml-auto flex items-center gap-1">
@@ -274,12 +304,15 @@ export function DesktopLayout() {
 function ItemNav({
   to,
   label,
+  corto,
   icon: Icon,
   end,
   ancho,
 }: {
   to: string;
   label: string;
+  /** Rótulo del rail estrecho. Si falta, se usa el largo. */
+  corto?: string;
   icon: React.ComponentType<{ className?: string }>;
   end?: boolean;
   ancho: boolean;
@@ -293,6 +326,11 @@ function ItemNav({
         cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          // `min-w-0` para que el enlace pueda encoger por debajo del ancho de
+          // su texto. Sin él, `truncate` no llega a activarse nunca: el
+          // `white-space: nowrap` que lleva dentro fija el ancho mínimo al del
+          // rótulo entero y es el propio ítem el que ensancha la barra.
+          "min-w-0",
           !ancho && "flex-col gap-1 px-1 py-2 text-[10px]",
           isActive
             ? "bg-primary-light text-primary-dark dark:bg-primary/20 dark:text-primary-light"
@@ -301,7 +339,10 @@ function ItemNav({
       }
     >
       <Icon className="size-5 shrink-0" />
-      <span className={cn(!ancho && "truncate")}>{label}</span>
+      {/* `max-w-full` ata el rótulo al ancho disponible en los dos modos, no
+          solo en el rail: en la barra ancha un nombre largo lo desbordaba
+          igual. */}
+      <span className="max-w-full truncate">{ancho ? label : (corto ?? label)}</span>
     </NavLink>
   );
 }
