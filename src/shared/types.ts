@@ -28,6 +28,12 @@ export interface Account {
   initialBalance: number;
   /** `initialBalance` más el neto de movimientos. Lo calcula el servidor. */
   currentBalance: number;
+  /**
+   * Límite de crédito. Solo en `CREDIT_CARD` y puede faltar: sin él no se
+   * calcula utilización. En una tarjeta, un `currentBalance` negativo es deuda
+   * (ver `lib/credit.ts`).
+   */
+  creditLimit: number | null;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
@@ -45,6 +51,11 @@ export interface AccountInput {
    * deseado y el servidor despeja el inicial (§8.3).
    */
   balance: number;
+  /**
+   * Solo se acepta en `CREDIT_CARD` y debe ser > 0. En cualquier otro tipo el
+   * servidor lo rechaza; manda `null` para quitarlo.
+   */
+  creditLimit?: number | null;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;

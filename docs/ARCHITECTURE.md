@@ -678,6 +678,86 @@ tests se adaptan a ella en vez de desactivarla.
 - **Aviso de versión nueva** en vez de recarga silenciosa (`registerType: "prompt"`).
 - **Caché persistida en IndexedDB** y **cola de escrituras offline**.
 
+---
+
+## 12. Tarjetas de crédito y utilización
+
+Añadido después de la migración. Hasta aquí una tarjeta se listaba y se sumaba
+igual que una cuenta de efectivo, que es incorrecto: **una tarjeta no es dinero
+que se tiene, es deuda**.
+
+### Convención de signos — la que ya había, no una nueva
+
+`balance.ts` hace que un `EXPENSE` reste del balance de su cuenta, así que
+gastar con una tarjeta la deja en **negativo**. De ahí sale todo lo demás:
+
+    deuda = −balance   (solo cuando el balance es negativo)
+
+Un balance positivo en una tarjeta es saldo a favor (un pago de más o una
+devolución), no deuda negativa: ahí la deuda es 0. Y un balance negativo en una
+cuenta normal es un descubierto, que es otra cosa y no se mide contra ningún
+límite. Todo esto vive en `src/lib/credit.ts`, compartido entre cliente y
+servidor igual que `balance.ts`.
+
+Hay un test que ata `credit.ts` a `balance.ts`: si alguien cambiara el signo de
+un `EXPENSE`, la deuda pasaría a calcularse al revés y fallaría.
+
+### `credit_limit` (migración 0002)
+
+`REAL` nullable, con `CHECK (credit_limit IS NULL OR credit_limit > 0)`. Null
+significa **sin configurar**, y entonces la app no calcula porcentaje en vez de
+inventárselo.
+
+La regla de que solo una `CREDIT_CARD` pueda tenerlo **no cabe en el esquema**:
+tendría que mirar `type`, y SQLite no deja añadir un CHECK de tabla con `ALTER
+TABLE`. La impone `routes/accounts.ts`, con tests de API que lo cubren. Al
+cambiar una tarjeta a otro tipo el límite se limpia, para que no reaparezca al
+volver a convertirla en tarjeta.
+
+### Semáforo
+
+Los cortes salen de la guía real de crédito (bajo 30 % no penaliza, bajo 10 %
+es lo ideal): **0–9 excelente · 10–29 bien · 30–49 aviso · 50–79 malo · 80+
+crítico**.
+
+Dos decisiones que conviene no deshacer sin pensarlo:
+
+1. **El nivel se decide sobre el porcentaje ya redondeado**, el mismo número
+   que se enseña. Sobre el exacto, un 29,6 % se mostraría como «30 %» junto al
+   texto «por debajo del 30 % recomendado», que se lee como una contradicción.
+2. **El color nunca va solo.** Cada nivel lleva etiqueta ("Atención",
+   "Crítico"…) y una frase que explica qué significa, porque quien no distingue
+   el verde del rojo tiene que enterarse igual (§10). La barra además es un
+   `role="meter"` con su `aria-label`.
+
+### Agregado
+
+La utilización total se calcula sobre **la suma de deudas dividida entre la
+suma de límites**, no promediando porcentajes: una tarjeta de 10 000 al 50 % y
+otra de 100 al 0 % dan 49,5 %, no 25 %. Las tarjetas sin límite quedan fuera del
+porcentaje (no hay contra qué medirlas) pero **sí cuentan en la deuda**, y la UI
+avisa de cuántas son.
+
+### Activos, deuda y neto
+
+La pantalla de Cuentas enseña tres cifras en vez de un total revuelto, y separa
+las tarjetas en su propia sección. `net = activos − deuda` **coincide con el
+`totalBalance` que ya calculaba el servidor** — no es una cifra nueva que pueda
+contradecir al dashboard, es la misma suma vista de otra forma. Hay un test que
+lo comprueba.
+
+Los agregados respetan `includeInTotal` (§8.1), la misma regla del balance
+total: aplicar aquí un criterio distinto haría que una cuenta contase en una
+pantalla y no en otra.
+
+### Exportar / importar
+
+`creditLimit` viaja en el JSON de exportación (aunque sea null): sin él,
+reimportar un respaldo dejaría las tarjetas sin límite. Al importar se aplican
+las mismas dos reglas que el API, pero un archivo viejo o tocado a mano **no
+invalida la importación entera**: esa cuenta entra sin límite, que es un estado
+válido. Un CSV no trae tipos de cuenta, así que de ahí nunca salen tarjetas.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se

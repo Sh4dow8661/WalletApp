@@ -65,6 +65,20 @@ function booleano(fila: Json, clave: string, porDefecto = false): boolean {
   return typeof v === "boolean" ? v : porDefecto;
 }
 
+/**
+ * Límite de crédito de un respaldo.
+ *
+ * Se aplican las mismas dos reglas que el API (`routes/accounts.ts`): solo en
+ * tarjetas y solo si es positivo. Aquí no se rechaza el archivo entero por
+ * esto — un respaldo viejo o tocado a mano simplemente se importa sin límite,
+ * que es un estado válido, en vez de perder toda la importación.
+ */
+function limiteCredito(fila: Json, type: AccountType): number | null {
+  if (type !== "CREDIT_CARD") return null;
+  const v = fila.creditLimit;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+}
+
 /** Identificador de Room: entero. Si no lo es, la fila se descarta. */
 function idOriginal(fila: Json, clave: string): number | null {
   const v = fila[clave];
@@ -164,6 +178,8 @@ export interface DatosImportados {
     name: string;
     type: AccountType;
     initialBalance: number;
+    /** Solo en tarjetas. Los respaldos anteriores a 0002 no lo traen. */
+    creditLimit: number | null;
     colorHex: string;
     iconName: IconName;
     includeInTotal: boolean;
@@ -264,6 +280,10 @@ export function transformarExport(
         name,
         type,
         initialBalance: numero(fila, "initialBalance"),
+        // Solo se conserva en tarjetas y si es positivo: así un respaldo
+        // manipulado no puede meter un límite en una cuenta de efectivo, que
+        // es justo lo que el API rechaza.
+        creditLimit: limiteCredito(fila, type),
         colorHex: color(texto(fila, "colorHex"), CATEGORY_PALETTE[8]),
         iconName: unaDe(texto(fila, "iconName"), ICON_NAMES, DEFAULT_ACCOUNT_ICON[type]),
         includeInTotal: booleano(fila, "includeInTotal", true),

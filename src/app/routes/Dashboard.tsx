@@ -1,9 +1,11 @@
 import { ArrowDownLeft, ArrowUpRight, ChevronRight, Receipt, Wallet } from "lucide-react";
 import { Link } from "react-router";
 
+import { cardDebt, isCreditCard, summarizeAccounts } from "@/lib/credit.ts";
 import { formatMoney } from "@/lib/money.ts";
 import type { Category, Transaction } from "@/shared/types.ts";
 
+import { BarraUtilizacion } from "../components/credito.tsx";
 import { CategoryIcon, MoneyText } from "../components/domain.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import {
@@ -26,6 +28,7 @@ export function DashboardScreen() {
   const cuentas = useAccounts();
   const categorias = useCategories();
   const recientes = useTransactions({ from, to, limit: 10 });
+  const resumenCuentas = summarizeAccounts(cuentas.data ?? []);
 
   return (
     <div className="space-y-4 p-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 md:p-6 xl:grid-cols-3">
@@ -66,6 +69,33 @@ export function DashboardScreen() {
         </p>
       </Card>
 
+      {/* Utilización agregada de todas las tarjetas. Importa tanto como la de
+          cada una: es la cifra que mira el scoring de crédito. */}
+      {resumenCuentas.totalPercent !== null && resumenCuentas.totalLevel !== null && (
+        <Card className="space-y-2 md:col-span-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold opacity-70">Utilización del crédito</h2>
+            <Link
+              to="/cuentas"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Ver tarjetas
+            </Link>
+          </div>
+          <BarraUtilizacion
+            utilizacion={{
+              debt: resumenCuentas.debt,
+              limit: resumenCuentas.totalLimit,
+              percent: resumenCuentas.totalPercent,
+              level: resumenCuentas.totalLevel,
+              available: null,
+              isOverLimit: false,
+            }}
+            currency={currency}
+          />
+        </Card>
+      )}
+
       <section className="space-y-2 md:col-span-1">
         <EncabezadoSeccion titulo="Cuentas" enlace="/cuentas" />
         {cuentas.isPending ? (
@@ -80,25 +110,39 @@ export function DashboardScreen() {
           </Card>
         ) : (
           <div className="grid gap-2">
-            {cuentas.data?.map((cuenta) => (
-              <Card key={cuenta.id} className="flex items-center gap-3 py-3">
-                <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{cuenta.name}</p>
-                  {!cuenta.includeInTotal && (
-                    <p className="text-xs opacity-50">No cuenta en el total</p>
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 text-sm font-semibold tabular-nums",
-                    cuenta.currentBalance < 0 && "text-expense",
-                  )}
-                >
-                  {formatMoney(cuenta.currentBalance, currency)}
-                </span>
-              </Card>
-            ))}
+            {cuentas.data?.map((cuenta) => {
+              // En una tarjeta se enseña la deuda en positivo: "300 $ de deuda"
+              // se lee de un vistazo, "−300 $" hay que traducirlo cada vez.
+              const tarjeta = isCreditCard(cuenta);
+              const importe = tarjeta ? cardDebt(cuenta) : cuenta.currentBalance;
+
+              return (
+                <Card key={cuenta.id} className="flex items-center gap-3 py-3">
+                  <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{cuenta.name}</p>
+                    {tarjeta ? (
+                      <p className="text-xs opacity-50">
+                        Deuda
+                        {!cuenta.includeInTotal && " · no cuenta en el total"}
+                      </p>
+                    ) : (
+                      !cuenta.includeInTotal && (
+                        <p className="text-xs opacity-50">No cuenta en el total</p>
+                      )
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      (tarjeta ? importe > 0 : importe < 0) && "text-expense",
+                    )}
+                  >
+                    {formatMoney(importe, currency)}
+                  </span>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>

@@ -56,6 +56,13 @@ export const walletAccounts = sqliteTable(
      * (§8.3). Al crear, es el balance inicial tal cual.
      */
     initialBalance: real("initial_balance").notNull().default(0),
+    /**
+     * Límite de crédito, solo en `CREDIT_CARD`. Null = sin configurar, y
+     * entonces la app no calcula utilización en vez de inventarse un
+     * porcentaje. Que solo lo lleven las tarjetas lo impone `routes/accounts.ts`
+     * (no cabe en un CHECK de columna, ver la migración 0002).
+     */
+    creditLimit: real("credit_limit"),
     colorHex: text("color_hex").notNull(),
     iconName: text("icon_name").$type<IconName>().notNull(),
     /** Si es false, la cuenta no suma al balance total del dashboard (§8.1). */

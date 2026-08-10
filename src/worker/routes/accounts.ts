@@ -3,7 +3,7 @@ import { Hono } from "hono";
 
 import { initialBalanceForDesiredCurrent } from "@/lib/balance.ts";
 import { uuidv7 } from "@/lib/id.ts";
-import { ACCOUNT_TYPES, ICON_NAMES } from "@/shared/constants.ts";
+import { ACCOUNT_TYPES, ICON_NAMES, type AccountType } from "@/shared/constants.ts";
 import type { Account } from "@/shared/types.ts";
 
 import type { AppEnv } from "../context.ts";
@@ -25,12 +25,40 @@ const selection = {
   type: walletAccounts.type,
   initialBalance: walletAccounts.initialBalance,
   currentBalance: accountCurrentBalance(),
+  creditLimit: walletAccounts.creditLimit,
   colorHex: walletAccounts.colorHex,
   iconName: walletAccounts.iconName,
   includeInTotal: walletAccounts.includeInTotal,
   createdAt: walletAccounts.createdAt,
   updatedAt: walletAccounts.updatedAt,
 };
+
+/**
+ * Límite de crédito, con las dos reglas que no caben en el esquema.
+ *
+ * 1. Solo una `CREDIT_CARD` puede tenerlo. Mandarlo en una cuenta de efectivo
+ *    no es un descuido inofensivo: significa que el cliente entendió mal el
+ *    modelo, así que se rechaza en vez de ignorarlo en silencio.
+ * 2. Si viene, tiene que ser > 0. Un 0 haría dividir por cero al calcular la
+ *    utilización; el CHECK de la migración 0002 lo respalda en la base.
+ *
+ * Ausente o `null` significa «sin límite configurado», que es válido: la UI
+ * enseña ese estado en vez de inventarse un porcentaje.
+ */
+function creditLimitOf(v: Validator, type: AccountType): number | null {
+  const limite = v.nullableNumber("creditLimit");
+  if (limite === null) return null;
+
+  if (type !== "CREDIT_CARD") {
+    v.reject("creditLimit", "Solo las tarjetas de crédito tienen límite");
+    return null;
+  }
+  if (limite <= 0) {
+    v.reject("creditLimit", "El límite debe ser mayor que cero");
+    return null;
+  }
+  return limite;
+}
 
 app.get("/", async (c) => {
   const rows = await c
@@ -69,6 +97,7 @@ app.post("/", async (c) => {
   const type = v.enum("type", ACCOUNT_TYPES);
   // Al CREAR, el campo `balance` es el balance inicial tal cual (§8.3).
   const initialBalance = v.number("balance");
+  const creditLimit = creditLimitOf(v, type);
   const colorHex = v.colorHex("colorHex");
   const iconName = v.enum("iconName", ICON_NAMES);
   const includeInTotal = v.boolean("includeInTotal", true);
@@ -84,6 +113,7 @@ app.post("/", async (c) => {
       name,
       type,
       initialBalance,
+      creditLimit,
       colorHex,
       iconName,
       includeInTotal,
@@ -104,6 +134,7 @@ app.put("/:id", async (c) => {
   const type = v.enum("type", ACCOUNT_TYPES);
   // Al EDITAR, `balance` es el balance ACTUAL deseado, no el inicial.
   const desiredCurrentBalance = v.number("balance");
+  const creditLimit = creditLimitOf(v, type);
   const colorHex = v.colorHex("colorHex");
   const iconName = v.enum("iconName", ICON_NAMES);
   const includeInTotal = v.boolean("includeInTotal", true);
@@ -135,6 +166,10 @@ app.put("/:id", async (c) => {
       name,
       type,
       initialBalance,
+      // Al pasar una tarjeta a otro tipo, `creditLimitOf` devuelve null y el
+      // límite se limpia: dejarlo colgado significaría que una cuenta de banco
+      // arrastra un límite invisible que reaparecería al volver a tarjeta.
+      creditLimit,
       colorHex,
       iconName,
       includeInTotal,

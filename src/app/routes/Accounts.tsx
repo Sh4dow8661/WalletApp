@@ -2,6 +2,12 @@ import { Plus, Trash2, Wallet } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
+import {
+  type AccountsSummary,
+  cardUtilization,
+  isCreditCard,
+  summarizeAccounts,
+} from "@/lib/credit.ts";
 import { formatMoney, parseAmountInput } from "@/lib/money.ts";
 import {
   ACCOUNT_TYPES,
@@ -10,7 +16,9 @@ import {
   type AccountType,
   type IconName,
 } from "@/shared/constants.ts";
+import type { Account } from "@/shared/types.ts";
 
+import { BarraUtilizacion } from "../components/credito.tsx";
 import { CategoryIcon, IconPicker } from "../components/domain.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
@@ -41,6 +49,12 @@ export function AccountsScreen() {
   const navigate = useNavigate();
   const { currency } = useDisplaySettings();
 
+  // Una tarjeta no es dinero que se tiene, es deuda, así que va en su propia
+  // sección y no revuelta con el efectivo (ver `lib/credit.ts`).
+  const regulares = cuentas.data?.filter((c) => !isCreditCard(c)) ?? [];
+  const tarjetas = cuentas.data?.filter(isCreditCard) ?? [];
+  const resumen = summarizeAccounts(cuentas.data ?? []);
+
   const lista = (
     <div>
       <ScreenHeader
@@ -55,7 +69,7 @@ export function AccountsScreen() {
         }
       />
 
-      <div className="space-y-2 p-4">
+      <div className="space-y-4 p-4">
         {cuentas.isPending ? (
           <Skeleton className="h-32" />
         ) : cuentas.data?.length === 0 ? (
@@ -63,28 +77,29 @@ export function AccountsScreen() {
             <EmptyState icon={Wallet} title="Sin cuentas" />
           </Card>
         ) : (
-          cuentas.data?.map((cuenta) => (
-            <Link key={cuenta.id} to={`/cuentas/${cuenta.id}`} className="block">
-              <Card className="flex items-center gap-3 py-3 transition-colors hover:bg-black/2 dark:hover:bg-white/8">
-                <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{cuenta.name}</p>
-                  <p className="text-xs opacity-60">
-                    {ETIQUETAS_TIPO[cuenta.type]}
-                    {!cuenta.includeInTotal && " · fuera del total"}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 text-sm font-semibold tabular-nums",
-                    cuenta.currentBalance < 0 && "text-expense",
-                  )}
-                >
-                  {formatMoney(cuenta.currentBalance, currency)}
-                </span>
-              </Card>
-            </Link>
-          ))
+          <>
+            <ResumenPatrimonio resumen={resumen} currency={currency} />
+
+            {regulares.length > 0 && (
+              <section className="space-y-2">
+                <h2 className="px-1 text-sm font-semibold opacity-70">Cuentas</h2>
+                {regulares.map((cuenta) => (
+                  <FilaCuenta key={cuenta.id} cuenta={cuenta} currency={currency} />
+                ))}
+              </section>
+            )}
+
+            {tarjetas.length > 0 && (
+              <section className="space-y-2">
+                <h2 className="px-1 text-sm font-semibold opacity-70">
+                  Tarjetas de crédito
+                </h2>
+                {tarjetas.map((tarjeta) => (
+                  <FilaTarjeta key={tarjeta.id} cuenta={tarjeta} currency={currency} />
+                ))}
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -98,6 +113,161 @@ export function AccountsScreen() {
         descripcion: "Elige una de la lista para editarla aquí, o crea una nueva.",
       }}
     />
+  );
+}
+
+/**
+ * Resumen del patrimonio, en tres cifras separadas.
+ *
+ * Un único "total" mezclaría dinero con deuda y saldría un número que no
+ * significa nada. Activos y deuda se enseñan aparte, y el neto es la resta.
+ */
+function ResumenPatrimonio({
+  resumen,
+  currency,
+}: {
+  resumen: AccountsSummary;
+  currency: string;
+}) {
+  return (
+    <Card className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <Cifra label="Activos" amount={resumen.assets} currency={currency} />
+        <Cifra
+          label="Deuda"
+          amount={resumen.debt}
+          currency={currency}
+          className={resumen.debt > 0 ? "text-expense" : undefined}
+        />
+        <Cifra
+          label="Neto"
+          amount={resumen.net}
+          currency={currency}
+          className={resumen.net < 0 ? "text-expense" : undefined}
+          destacada
+        />
+      </div>
+
+      {resumen.totalPercent !== null && resumen.totalLevel !== null && (
+        <div className="border-t border-black/8 pt-3 dark:border-white/10">
+          <p className="mb-1.5 text-xs opacity-60">Utilización total del crédito</p>
+          <BarraUtilizacion
+            utilizacion={{
+              debt: resumen.debt,
+              limit: resumen.totalLimit,
+              percent: resumen.totalPercent,
+              level: resumen.totalLevel,
+              available: null,
+              isOverLimit: false,
+            }}
+            currency={currency}
+            compacta
+          />
+          {resumen.cardsWithoutLimit > 0 && (
+            <p className="mt-1 text-xs opacity-60">
+              {resumen.cardsWithoutLimit === 1
+                ? "Una tarjeta sin límite queda fuera de este porcentaje."
+                : `${resumen.cardsWithoutLimit} tarjetas sin límite quedan fuera de este porcentaje.`}
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Cifra({
+  label,
+  amount,
+  currency,
+  className,
+  destacada = false,
+}: {
+  label: string;
+  amount: number;
+  currency: string;
+  className?: string;
+  destacada?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate text-xs opacity-60">{label}</p>
+      <p
+        className={cn(
+          "truncate font-semibold tabular-nums",
+          destacada ? "text-base" : "text-sm",
+          className,
+        )}
+      >
+        {formatMoney(amount, currency)}
+      </p>
+    </div>
+  );
+}
+
+function FilaCuenta({ cuenta, currency }: { cuenta: Account; currency: string }) {
+  return (
+    <Link to={`/cuentas/${cuenta.id}`} className="block">
+      <Card className="flex items-center gap-3 py-3 transition-colors hover:bg-black/2 dark:hover:bg-white/8">
+        <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{cuenta.name}</p>
+          <p className="text-xs opacity-60">
+            {ETIQUETAS_TIPO[cuenta.type]}
+            {!cuenta.includeInTotal && " · fuera del total"}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 text-sm font-semibold tabular-nums",
+            cuenta.currentBalance < 0 && "text-expense",
+          )}
+        >
+          {formatMoney(cuenta.currentBalance, currency)}
+        </span>
+      </Card>
+    </Link>
+  );
+}
+
+/**
+ * Fila de tarjeta: enseña la DEUDA, no el balance en negativo.
+ *
+ * "−300 $" obliga a traducir mentalmente el signo cada vez; "300 $ de deuda"
+ * se entiende de un vistazo, que es de lo que se trata.
+ */
+function FilaTarjeta({ cuenta, currency }: { cuenta: Account; currency: string }) {
+  const utilizacion = cardUtilization(cuenta);
+
+  return (
+    <Link to={`/cuentas/${cuenta.id}`} className="block">
+      <Card className="space-y-2.5 transition-colors hover:bg-black/2 dark:hover:bg-white/8">
+        <div className="flex items-center gap-3">
+          <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{cuenta.name}</p>
+            <p className="text-xs opacity-60">
+              Deuda
+              {!cuenta.includeInTotal && " · fuera del total"}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "shrink-0 text-sm font-semibold tabular-nums",
+              utilizacion.debt > 0 && "text-expense",
+            )}
+          >
+            {formatMoney(utilizacion.debt, currency)}
+          </span>
+        </div>
+
+        <BarraUtilizacion
+          utilizacion={utilizacion}
+          currency={currency}
+          enlaceConfigurar={`/cuentas/${cuenta.id}`}
+        />
+      </Card>
+    </Link>
   );
 }
 
@@ -139,6 +309,7 @@ export function AccountFormScreen() {
         type: existente.type,
         // Al editar se muestra el balance ACTUAL, no el inicial (§8.3).
         balance: String(existente.currentBalance),
+        creditLimit: existente.creditLimit === null ? "" : String(existente.creditLimit),
         colorHex: existente.colorHex,
         iconName: existente.iconName,
         includeInTotal: existente.includeInTotal,
@@ -148,6 +319,7 @@ export function AccountFormScreen() {
         name: "",
         type: "CASH" as AccountType,
         balance: "0",
+        creditLimit: "",
         colorHex: CATEGORY_PALETTE[8],
         iconName: "Payments" as IconName,
         includeInTotal: true,
@@ -161,6 +333,8 @@ interface ValoresCuenta {
   name: string;
   type: AccountType;
   balance: string;
+  /** Vacío = sin límite configurado. */
+  creditLimit: string;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
@@ -184,6 +358,7 @@ function AccountForm({
   const [name, setName] = useState(inicial.name);
   const [type, setType] = useState<AccountType>(inicial.type);
   const [balance, setBalance] = useState(inicial.balance);
+  const [creditLimit, setCreditLimit] = useState(inicial.creditLimit);
   const [colorHex, setColorHex] = useState<string>(inicial.colorHex);
   const [iconName, setIconName] = useState<IconName>(inicial.iconName);
   const [includeInTotal, setIncludeInTotal] = useState(inicial.includeInTotal);
@@ -191,6 +366,8 @@ function AccountForm({
   const idNuevo = useIdNuevo();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
+
+  const esTarjeta = type === "CREDIT_CARD";
 
   function cambiarTipo(nuevo: AccountType) {
     setType(nuevo);
@@ -208,6 +385,17 @@ function AccountForm({
       return;
     }
 
+    // El límite solo existe en las tarjetas. En cualquier otro tipo se manda
+    // null para que el servidor lo limpie si la cuenta venía de ser tarjeta.
+    let limite: number | null = null;
+    if (esTarjeta && creditLimit.trim() !== "") {
+      limite = parseAmountInput(creditLimit);
+      if (limite === null || limite <= 0) {
+        setErrores({ creditLimit: "El límite debe ser un número mayor que cero" });
+        return;
+      }
+    }
+
     try {
       await guardar.mutateAsync({
         id,
@@ -215,6 +403,7 @@ function AccountForm({
         name,
         type,
         balance: importe,
+        creditLimit: limite,
         colorHex,
         iconName,
         includeInTotal,
@@ -294,11 +483,25 @@ function AccountForm({
           onChange={(e) => setBalance(e.target.value)}
           error={errores.balance}
           hint={
-            editando
-              ? "Escribe el saldo real de la cuenta y se cuadrará sola: las transacciones no se tocan."
-              : "Con cuánto empieza la cuenta."
+            esTarjeta
+              ? "En una tarjeta, un saldo negativo es deuda. Ej.: −300 significa que debes 300."
+              : editando
+                ? "Escribe el saldo real de la cuenta y se cuadrará sola: las transacciones no se tocan."
+                : "Con cuánto empieza la cuenta."
           }
         />
+
+        {/* Solo tiene sentido en una tarjeta, así que solo aparece ahí. */}
+        {esTarjeta && (
+          <TextField
+            label="Límite de crédito"
+            inputMode="decimal"
+            value={creditLimit}
+            onChange={(e) => setCreditLimit(e.target.value)}
+            error={errores.creditLimit}
+            hint="Déjalo vacío si no lo sabes: entonces no se calcula el porcentaje de utilización."
+          />
+        )}
 
         <SwitchField
           label="Contar en el balance total"
