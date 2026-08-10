@@ -151,7 +151,19 @@ function ResumenPatrimonio({
 }) {
   return (
     <Card className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
+      {/*
+        Flex con wrap y NO `grid-cols-3`.
+
+        Con tres columnas iguales, la del neto se quedaba corta en cuanto el
+        número crecía —"-USD 1,105.08" pide 129 px y la columna daba 111— y el
+        importe salía recortado como "-USD 1,10…". Repartir a partes iguales un
+        ancho que no llega solo sirve para cortar las tres por igual.
+
+        Así cada cifra ocupa lo que necesita y, cuando las tres no caben, la
+        última baja de línea. Se gana un renglón en el peor caso y no se pierde
+        ni un dígito.
+      */}
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
         <Cifra label="Activos" amount={resumen.assets} currency={currency} />
         <Cifra
           label="Deuda"
@@ -225,11 +237,23 @@ function Cifra({
   destacada?: boolean;
 }) {
   return (
-    <div className="min-w-0">
-      <p className="truncate text-xs opacity-60">{label}</p>
+    // `shrink-0`: la cifra manda su propio ancho. Si la dejásemos encoger,
+    // volveríamos al recorte por otra vía.
+    <div className="shrink-0">
+      <p className="text-xs opacity-60">{label}</p>
+      {/*
+        El importe NO se recorta nunca. Con `truncate`, un neto negativo y
+        grande salía como "-USD 1,10…" en el panel de escritorio (necesitaba
+        129 px y tenía 111) y en móvil se cortaban Deuda y Neto: un número a
+        medias es peor que ninguno, porque se lee como si fuera otra cifra.
+
+        Se deja que parta en dos líneas por el espacio del símbolo. Ocupa un
+        renglón más en el peor caso, que es un precio ridículo comparado con
+        enseñar mal el dinero.
+      */}
       <p
         className={cn(
-          "truncate font-semibold tabular-nums",
+          "font-semibold tabular-nums",
           destacada ? "text-base" : "text-sm",
           className,
         )}

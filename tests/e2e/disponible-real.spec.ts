@@ -156,3 +156,68 @@ test("el desglose cuadra: activos − colchones − deuda", async ({ page }) => 
   expect(deuda, "sin deuda el escenario no prueba nada").toBeGreaterThan(0);
   expect(activos - colchones - deuda).toBeCloseTo(resultado, 2);
 });
+
+/**
+ * Regresión: el importe del resumen se recortaba.
+ *
+ * Con la deuda real del usuario, el «Neto» salía como "-USD 1,10…" en el panel
+ * de escritorio (necesitaba 129 px y tenía 111) y en móvil se cortaban también
+ * la Deuda. Un número a medias es peor que ninguno: se lee como si fuera otra
+ * cifra. La petición 7 avisaba justo de esto —«el número se me va a ir a
+ * negativo y grande»— así que aquí se comprueba con una deuda de ese tamaño.
+ */
+test("ninguna cifra de dinero del resumen se recorta", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const j = async (metodo: string, url: string, cuerpo?: unknown) => {
+      const r = await fetch(url, {
+        method: metodo,
+        headers: { "content-type": "application/json" },
+        body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      });
+      return r.json().catch(() => null);
+    };
+
+    type Cuenta = { id: string; name: string };
+    const existentes = (await j("GET", "/api/accounts")) as Cuenta[];
+    if (existentes.some((c) => c.name === "Tarjeta Gorda DR")) return;
+
+    // Deuda de cuatro cifras: es la que desbordaba.
+    await j("POST", "/api/accounts", {
+      name: "Tarjeta Gorda DR",
+      type: "CREDIT_CARD",
+      balance: -1503.13,
+      creditLimit: 8000,
+      colorHex: "#F44336",
+      iconName: "CreditCard",
+      includeInTotal: true,
+    });
+  });
+  await limpiarCacheDeConsultas(page);
+
+  for (const [width, height] of [
+    [1920, 1080],
+    [1280, 800],
+    [390, 844],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/cuentas");
+    await page.waitForLoadState("networkidle");
+
+    const recortadas = await page.evaluate(() => {
+      const malas: string[] = [];
+      for (const p of document.querySelectorAll("p")) {
+        const etiqueta = (p.textContent ?? "").trim();
+        if (!/^(Activos|Deuda|Neto)$/.test(etiqueta)) continue;
+        const valor = p.nextElementSibling;
+        if (!valor) continue;
+        if (valor.scrollWidth > valor.clientWidth + 1) {
+          malas.push(`${etiqueta}="${valor.textContent?.trim()}"`);
+        }
+      }
+      return malas;
+    });
+
+    expect(recortadas, `${width}x${height}: cifras recortadas`).toEqual([]);
+  }
+});
