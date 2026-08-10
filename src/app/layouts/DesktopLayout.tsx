@@ -14,12 +14,12 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 
-import { summarizeAvailability } from "@/lib/colchon.ts";
-import { formatMoney } from "@/lib/money.ts";
+import { summarizeNetWorth } from "@/lib/patrimonio.ts";
 
+import { DisponibleReal } from "../components/patrimonio.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { ResponsiveDialog } from "../components/ui/responsive-dialog.tsx";
-import { useAccounts, useDashboard } from "../hooks/api.ts";
+import { useAccounts } from "../hooks/api.ts";
 import { useBreakpoint } from "../hooks/use-breakpoint.ts";
 import { type Shortcut, useShortcuts } from "../hooks/use-shortcuts.ts";
 import { useMonth } from "../hooks/use-month.tsx";
@@ -86,10 +86,11 @@ export function DesktopLayout() {
   const navigate = useNavigate();
   const breakpoint = useBreakpoint();
   const esEscritorio = breakpoint === "desktop";
-  const { year, month, label, currency, previous, next } = useMonth();
-  const resumen = useDashboard(year, month);
+  const { label, currency, previous, next } = useMonth();
+  // La cabecera ya no lee el balance del dashboard: la cifra sale de las
+  // cuentas, igual que en las otras dos pantallas, para que no puedan discrepar.
   const cuentas = useAccounts();
-  const disponibilidad = summarizeAvailability(cuentas.data ?? []);
+  const patrimonio = summarizeNetWorth(cuentas.data ?? []);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   const atajos: Shortcut[] = [
@@ -239,21 +240,9 @@ export function DesktopLayout() {
             esEscritorio ? "px-6" : "px-4",
           )}
         >
-          <div className="min-w-0">
-            {/* Con colchones se enseña el disponible, igual que el dashboard:
-                las dos cabeceras no pueden decir cifras distintas. */}
-            <p className="text-xs opacity-60">
-              {disponibilidad.hasAnyBuffer ? "Disponible real" : "Balance total"}
-            </p>
-            <p className="text-xl font-bold tabular-nums">
-              {formatMoney(
-                disponibilidad.hasAnyBuffer
-                  ? disponibilidad.available
-                  : (resumen.data?.totalBalance ?? 0),
-                currency,
-              )}
-            </p>
-          </div>
+          {/* La misma cifra y el mismo desglose que el Dashboard y Cuentas:
+              las tres pantallas leen de `summarizeNetWorth`. */}
+          <DisponibleReal patrimonio={patrimonio} currency={currency} compacto />
 
           {/* Selector de mes siempre visible, como pide §10. */}
           <div className="ml-auto flex items-center gap-1">

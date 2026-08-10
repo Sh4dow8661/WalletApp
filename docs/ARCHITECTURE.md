@@ -1054,6 +1054,45 @@ cuatro lados en los dos estados.
 Se arregló en `SwitchField`, así que vale para todos los interruptores de la app,
 no solo para el que se vio.
 
+---
+
+## 18. «Disponible real»: una sola cuenta de la verdad
+
+Antes cada pantalla sumaba lo suyo y el mismo concepto salía con cifras
+distintas. Ahora la cabecera, el Dashboard y la pantalla de Cuentas llaman las
+tres a `summarizeNetWorth` (`src/lib/patrimonio.ts`), así que **no pueden
+discrepar** por construcción.
+
+### Dos preguntas distintas, dos números
+
+    puedoGastarHoy = activos − colchones
+    disponibleReal = activos − colchones − deuda de tarjetas
+
+La primera contesta «cuánto puedo gastar hoy sin tocar mis colchones». La
+segunda, «cuánto tengo de verdad»: ahí la deuda de la tarjeta cuenta, porque es
+dinero que ya se debe aunque todavía no haya salido de la cuenta. Se enseñan
+**las dos**, porque perder la primera dejaba sin respuesta una pregunta que se
+hace a diario.
+
+`disponibleReal` puede salir muy negativo, y se muestra tal cual: taparlo sería
+lo contrario de para lo que sirve. En rojo, salvo en la tarjeta verde del
+Dashboard, donde el texto ya va en blanco y el rojo no se leería — ahí lo
+distinguen el signo y el desglose.
+
+### `includeInTotal` también manda en las tarjetas
+
+Una tarjeta excluida del total **no suma deuda**, igual que una cuenta excluida
+no suma saldo. Si la deuda contase pero el saldo no, el mismo flag significaría
+cosas distintas según el tipo de cuenta, que es justo la clase de sorpresa que
+hay que evitar. La tarjeta sigue apareciendo en su lista con su utilización.
+
+### Desglose auditable
+
+Bajo la cifra hay un desplegable con **activos − colchones − deuda = disponible
+real**. Las líneas que valen cero se omiten, para que quien no usa colchones ni
+tiene tarjetas no vea ruido. Hay un e2e que comprueba que la resta cuadra y que
+las tres pantallas enseñan la misma cifra.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se

@@ -16,6 +16,7 @@ import {
   summarizeAccounts,
 } from "@/lib/credit.ts";
 import { formatMoney, parseAmountInput } from "@/lib/money.ts";
+import { type Patrimonio, summarizeNetWorth } from "@/lib/patrimonio.ts";
 import {
   ACCOUNT_TYPES,
   CATEGORY_PALETTE,
@@ -27,6 +28,7 @@ import type { Account } from "@/shared/types.ts";
 
 import { BarraUtilizacion } from "../components/credito.tsx";
 import { CategoryIcon, IconPicker } from "../components/domain.tsx";
+import { DisponibleReal } from "../components/patrimonio.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import {
@@ -62,6 +64,7 @@ export function AccountsScreen() {
   const tarjetas = cuentas.data?.filter(isCreditCard) ?? [];
   const resumen = summarizeAccounts(cuentas.data ?? []);
   const disponibilidad = summarizeAvailability(cuentas.data ?? []);
+  const patrimonio = summarizeNetWorth(cuentas.data ?? []);
 
   const lista = (
     <div>
@@ -89,6 +92,7 @@ export function AccountsScreen() {
             <ResumenPatrimonio
               resumen={resumen}
               disponibilidad={disponibilidad}
+              patrimonio={patrimonio}
               currency={currency}
             />
 
@@ -137,10 +141,12 @@ export function AccountsScreen() {
 function ResumenPatrimonio({
   resumen,
   disponibilidad,
+  patrimonio,
   currency,
 }: {
   resumen: AccountsSummary;
   disponibilidad: AvailabilitySummary;
+  patrimonio: Patrimonio;
   currency: string;
 }) {
   return (
@@ -162,23 +168,10 @@ function ResumenPatrimonio({
         />
       </div>
 
-      {/* Solo si hay algún colchón: con 0 la UI se comporta como antes. */}
-      {disponibilidad.hasAnyBuffer && (
+      {/* La misma cifra y el mismo desglose que la cabecera y el Dashboard. */}
+      {(patrimonio.hasAnyBuffer || patrimonio.hasCardDebt) && (
         <div className="border-t border-black/8 pt-3 dark:border-white/10">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs opacity-60">Disponible real</span>
-            <span
-              className={cn(
-                "text-base font-semibold tabular-nums",
-                disponibilidad.available < 0 && "text-expense",
-              )}
-            >
-              {formatMoney(disponibilidad.available, currency)}
-            </span>
-          </div>
-          <p className="text-xs opacity-60">
-            {formatMoney(disponibilidad.reserved, currency)} retenidos en colchones
-          </p>
+          <DisponibleReal patrimonio={patrimonio} currency={currency} compacto />
           {disponibilidad.accountsBelowBuffer > 0 && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-expense">
               <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
