@@ -6,10 +6,14 @@ import {
   anchorDayFrom,
   daysUntilDue,
   dueStatus,
+  SEMANAS_POR_MES,
+  SIN_CATEGORIA,
+  groupFixedExpensesByCategory,
   monthlyEquivalent,
   nextDueDate,
   sortFixedExpenses,
   summarizeFixedExpenses,
+  weeklyEquivalent,
 } from "./gastos-fijos.ts";
 
 const TZ = "America/Puerto_Rico";
@@ -195,5 +199,103 @@ describe("orden", () => {
       const orden = sortFixedExpenses([inactivo, caro, porVencer], criterio);
       expect(orden[orden.length - 1]).toBe(inactivo);
     }
+  });
+});
+
+describe("equivalente semanal", () => {
+  it("divide entre 4, la convención del Excel del usuario", () => {
+    // Deliberadamente NO 4,33: ver `SEMANAS_POR_MES`. Con 4,33 saldrían 127,93
+    // y dejaría de cuadrar con la hoja de la que salen estos datos.
+    expect(weeklyEquivalent(556.25)).toBeCloseTo(139.0625, 4);
+    expect(SEMANAS_POR_MES).toBe(4);
+  });
+
+  it("cero al mes es cero a la semana", () => {
+    expect(weeklyEquivalent(0)).toBe(0);
+  });
+});
+
+describe("agrupación por categoría", () => {
+  const conCategoria = (
+    amount: number,
+    everyMonths: number,
+    categoryId: string | null,
+    isActive = true,
+  ) => ({ ...gasto(amount, everyMonths, "2026-08-15", isActive), categoryId });
+
+  const nombres: Record<string, string> = { tec: "Tecnología", tra: "Transporte" };
+  const nombreDe = (id: string) => nombres[id];
+
+  it("suma el subtotal de cada categoría", () => {
+    const grupos = groupFixedExpensesByCategory(
+      [
+        conCategoria(112, 1, "tec"),
+        conCategoria(112, 12, "tec"),
+        conCategoria(200, 1, "tra"),
+      ],
+      nombreDe,
+      "costo",
+    );
+
+    expect(grupos).toHaveLength(2);
+    const tecnologia = grupos.find((g) => g.categoryName === "Tecnología")!;
+    expect(tecnologia.monthlyEquivalent).toBeCloseTo(121.3333, 4);
+    expect(tecnologia.expenses).toHaveLength(2);
+  });
+
+  it("los grupos van de mayor a menor subtotal", () => {
+    const grupos = groupFixedExpensesByCategory(
+      [conCategoria(10, 1, "tec"), conCategoria(200, 1, "tra")],
+      nombreDe,
+      "costo",
+    );
+    expect(grupos.map((g) => g.categoryName)).toEqual(["Transporte", "Tecnología"]);
+  });
+
+  it("los subtotales suman el mismo total que la cabecera", () => {
+    // Es la propiedad que hace fiable la vista agrupada: si no cuadrase, el
+    // usuario vería dos verdades distintas en la misma pantalla.
+    const lista = [
+      conCategoria(112, 1, "tec"),
+      conCategoria(390, 12, "tra"),
+      conCategoria(51, 1, null),
+    ];
+    const grupos = groupFixedExpensesByCategory(lista, nombreDe, "costo");
+    const sumaSubtotales = grupos.reduce((s, g) => s + g.monthlyEquivalent, 0);
+
+    expect(sumaSubtotales).toBeCloseTo(
+      summarizeFixedExpenses(lista, 2026, 8, dia("2026-08-01"), TZ).monthlyEquivalent,
+      10,
+    );
+  });
+
+  it("los inactivos siguen en su grupo pero no suman al subtotal", () => {
+    const grupos = groupFixedExpensesByCategory(
+      [conCategoria(100, 1, "tec"), conCategoria(9999, 1, "tec", false)],
+      nombreDe,
+      "costo",
+    );
+    expect(grupos[0]!.expenses).toHaveLength(2);
+    expect(grupos[0]!.monthlyEquivalent).toBe(100);
+  });
+
+  it("los que no tienen categoría caen en un grupo aparte, siempre el último", () => {
+    const grupos = groupFixedExpensesByCategory(
+      [conCategoria(9999, 1, null), conCategoria(10, 1, "tec")],
+      nombreDe,
+      "costo",
+    );
+    expect(grupos[grupos.length - 1]!.categoryName).toBe(SIN_CATEGORIA);
+    expect(grupos[grupos.length - 1]!.categoryId).toBeNull();
+  });
+
+  it("una categoría borrada cae al cajón de sastre, no crea un grupo sin nombre", () => {
+    const grupos = groupFixedExpensesByCategory(
+      [conCategoria(10, 1, "ya-no-existe")],
+      nombreDe,
+      "costo",
+    );
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0]!.categoryName).toBe(SIN_CATEGORIA);
   });
 });

@@ -1076,6 +1076,96 @@ Lo que queda pendiente son los **números** (Performance ≥ 90, Accessibility �
 Se pueden sacar en un clic desde Chrome → DevTools → Lighthouse contra
 `pnpm preview`, y conviene hacerlo antes de dar por buena la Fase 8.
 
+## 18. Importar los gastos fijos del Excel
+
+El usuario lleva sus gastos fijos en una hoja de cálculo y quiere **seguir
+llevándolos ahí**. Por eso lo que se añadió no es un script de carga de una sola
+vez sino una **importación por pegado**: se pega la tabla, se ve lo que va a
+pasar y se confirma. Cuando la hoja cambie, se vuelve a pegar.
+
+### La cifra que manda: 556,25
+
+Los 13 gastos de la hoja tienen que dar **exactamente 556,25 al mes**. Es el
+número que él ya lee en su Excel, así que sirve de prueba de fuego del cálculo:
+si no sale, el error está en el equivalente mensual, no en el redondeo.
+
+Sale exacto sin trucos porque el equivalente no se redondea hasta pintarlo
+(§14): 112 + 112/12 + 50 + 45 + 9 + 200 + 200/12 + 9 + 33/6 + 390/12 + 51 +
+61/6 + 73/12 = 556,25. Está clavado en un test unitario y en uno de API.
+
+### Semanal = mensual / 4, y es deliberado
+
+Lo correcto en calendario sería 365,25/12/7 ≈ 4,348 semanas por mes. **Aquí se
+divide entre 4**, que es lo que hace la hoja del usuario. Con el número «bueno»
+la app y el Excel discreparían en cada línea (139,06 frente a 127,93) y la cifra
+dejaría de servirle para comparar, que es justo para lo que la usa.
+
+Vive en `SEMANAS_POR_MES`, con el porqué escrito al lado. Si algún día se quiere
+la conversión de calendario hay que cambiarla en los dos sitios a la vez.
+
+### Idempotencia: la clave es el nombre normalizado
+
+La hoja no guarda identificadores, así que la única clave natural es el nombre.
+`claveDeNombre` lo normaliza —sin acentos, sin mayúsculas, espacios colapsados—
+de modo que el «TELEFONO» del Excel reconoce al «Teléfono» ya guardado. Pegar
+dos veces la misma tabla actualiza; no duplica.
+
+### Qué se sincroniza y qué NO — la decisión importante
+
+El Excel solo tiene cuatro columnas: nombre, categoría, importe y cada cuántos
+meses. **El vencimiento y la cuenta de la que sale el dinero no están ahí** y se
+rellenan después desde la app.
+
+Por eso, al reconocer un gasto que ya existe, la importación **solo pisa lo que
+el Excel sabe de verdad** (importe, periodicidad y categoría) y deja intactos
+`next_due_date`, `account_id`, `is_active` y la nota. Si no fuera así, volver a
+pegar la hoja para actualizar un precio borraría de golpe todas las fechas y
+cuentas configuradas a mano — justo el trabajo que la hoja no puede reponer.
+
+Hay un test de API dedicado solo a esto, porque es la regla que sostiene todo el
+diseño del endpoint.
+
+### Categorías: se crean las que falten
+
+De las 7 de la hoja, tres ya venían de la siembra del registro (Transporte,
+Entretenimiento, Salud) y cuatro se crean en la importación (Tecnología,
+Alimentación, Personal, Hogar). Se casan por nombre normalizado, así que no se
+duplican las que ya estaban.
+
+El icono sale de una tabla de nombres conocidos y cae en el genérico si no
+reconoce; el color se deriva **del nombre por un hash estable**, no del orden de
+llegada, para que la misma categoría salga siempre del mismo color.
+
+### El parser es tolerante a propósito
+
+`parsePastedFixedExpenses` admite tabulador (lo que copia Excel), barra vertical
+(una tabla de Markdown), punto y coma y varios espacios. Ignora la cabecera y el
+separador de Markdown sin que haya que quitarlos.
+
+**La coma NO es separador, y es deliberado**: un importe como `1,234.56` la
+lleva dentro y partir por comas rompería justo las filas de los gastos más
+caros. Para CSV separado por comas está el importador de §12.
+
+Una fila mala no cuesta la importación entera: se recoge en `issues`, se enseña
+en el diálogo con su número de línea y las demás siguen — el mismo criterio que
+`parseCsv`.
+
+### Agrupación por categoría con subtotales
+
+La pantalla gana una tercera vista, «Categoría», que agrupa con subtotales como
+la hoja de cálculo, ordenada de mayor a menor gasto mensual y con «sin
+categoría» siempre al final. Los subtotales solo cuentan los activos, para que
+**sumen exactamente el total de la cabecera**; hay un test que lo comprueba,
+porque dos verdades distintas en la misma pantalla serían peores que ninguna.
+
+### Lo que quedó pendiente de decidir
+
+La fecha del próximo pago y la cuenta de cada gasto **no están en el Excel**. El
+diálogo las pide una sola vez y las aplica a los gastos nuevos (la fecha por
+defecto es hoy, la cuenta puede quedar sin asignar), y se afinan después desde
+cada gasto. Importa sobre todo en los que no son mensuales: Google AI Plus,
+Marbete, Planet Fitness, Costco Gold Star, Creatina y Perfume.
+
 ## 12. Fase 7 — migración de los datos reales
 
 ### El CSV no bastaba, y el motivo no era obvio

@@ -3,10 +3,15 @@ import { Hono } from "hono";
 
 import { anchorDayFrom, nextDueDate } from "@/lib/gastos-fijos.ts";
 import { uuidv7 } from "@/lib/id.ts";
+import {
+  claveDeNombre,
+  colorParaCategoria,
+  iconoParaCategoria,
+} from "@/lib/importar-gastos-fijos.ts";
 import type { FixedExpense } from "@/shared/types.ts";
 
 import type { AppEnv } from "../context.ts";
-import { fixedExpenses, transactions } from "../db/schema.ts";
+import { categories, fixedExpenses, transactions } from "../db/schema.ts";
 import { Validator } from "../validation.ts";
 
 /**
@@ -65,6 +70,221 @@ function parseBody(v: Validator) {
   }
 
   return { name, amount, everyMonths, nextDue, accountId, categoryId, isActive, note };
+}
+
+/**
+ * Importación por pegado: crea los que faltan y actualiza los que ya están.
+ *
+ * ## Qué sincroniza y qué NO
+ *
+ * La hoja de cálculo de la que sale esto solo tiene cuatro columnas: nombre,
+ * categoría, importe y cada cuántos meses. El vencimiento y la cuenta de la que
+ * sale el dinero **no están en el Excel** y se rellenan después desde la app.
+ *
+ * Por eso, al reconocer un gasto que ya existe, solo se pisan los tres campos
+ * que el Excel conoce de verdad —importe, periodicidad y categoría— y se dejan
+ * intactos `next_due_date`, `account_id` y `is_active`. Si no fuera así, volver
+ * a pegar la hoja para actualizar un precio borraría de golpe todas las fechas
+ * y cuentas que se hubieran configurado a mano, que es justo el trabajo que la
+ * hoja no puede reponer.
+ *
+ * ## Idempotencia
+ *
+ * La clave es el **nombre normalizado** (`claveDeNombre`): sin acentos, sin
+ * mayúsculas y con los espacios colapsados. La hoja no guarda identificadores,
+ * así que el nombre es la única clave natural que hay. Pegar dos veces lo mismo
+ * actualiza, no duplica.
+ */
+app.post("/import", async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+
+  const v = new Validator(await c.req.json());
+  const items = parseImportItems(v);
+  const defaultNextDue = v.timestamp("defaultNextDueDate");
+  const defaultAccountId = v.nullableRef("defaultAccountId");
+  v.throwIfInvalid();
+
+  const [gastosExistentes, categoriasExistentes] = await Promise.all([
+    db
+      .select({
+        id: fixedExpenses.id,
+        name: fixedExpenses.name,
+      })
+      .from(fixedExpenses)
+      .where(and(eq(fixedExpenses.userId, userId), isNull(fixedExpenses.deletedAt))),
+    db
+      .select({ id: categories.id, name: categories.name })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.userId, userId),
+          eq(categories.type, "EXPENSE"),
+          isNull(categories.deletedAt),
+        ),
+      ),
+  ]);
+
+  const gastoPorNombre = new Map(
+    gastosExistentes.map((g) => [claveDeNombre(g.name), g.id]),
+  );
+  const categoriaPorNombre = new Map(
+    categoriasExistentes.map((cat) => [claveDeNombre(cat.name), cat.id]),
+  );
+
+  const now = Date.now();
+  const timeZone = c.get("timeZone");
+  const sentencias = [];
+  const createdCategories: string[] = [];
+
+  // Primero las categorías que falten: los gastos de después las referencian, y
+  // en un mismo `batch` de D1 las sentencias corren en orden.
+  for (const item of items) {
+    if (item.categoryName === "") continue;
+    const clave = claveDeNombre(item.categoryName);
+    if (categoriaPorNombre.has(clave)) continue;
+
+    const idCategoria = uuidv7();
+    categoriaPorNombre.set(clave, idCategoria);
+    createdCategories.push(item.categoryName);
+    sentencias.push(
+      db.insert(categories).values({
+        id: idCategoria,
+        userId,
+        name: item.categoryName,
+        type: "EXPENSE",
+        iconName: iconoParaCategoria(item.categoryName),
+        colorHex: colorParaCategoria(item.categoryName),
+        // Creada por una importación, no por la siembra del registro.
+        isDefault: false,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+  }
+
+  let created = 0;
+  let updated = 0;
+
+  for (const item of items) {
+    const categoryId =
+      item.categoryName === ""
+        ? null
+        : (categoriaPorNombre.get(claveDeNombre(item.categoryName)) ?? null);
+    const existente = gastoPorNombre.get(claveDeNombre(item.name));
+
+    if (existente) {
+      updated += 1;
+      sentencias.push(
+        db
+          .update(fixedExpenses)
+          .set({
+            // Solo lo que el Excel sabe. Ver la nota de arriba.
+            name: item.name,
+            amount: item.amount,
+            everyMonths: item.everyMonths,
+            categoryId,
+            ...(item.nextDueDate === undefined
+              ? {}
+              : {
+                  nextDueDate: item.nextDueDate,
+                  anchorDay: anchorDayFrom(item.nextDueDate, timeZone),
+                }),
+            updatedAt: now,
+          })
+          .where(and(eq(fixedExpenses.id, existente), eq(fixedExpenses.userId, userId))),
+      );
+      continue;
+    }
+
+    created += 1;
+    const nextDue = item.nextDueDate ?? defaultNextDue;
+    const idGasto = uuidv7();
+    // Se registra en el mapa para que una fila repetida que el cliente no haya
+    // filtrado actualice a la recién creada en vez de insertar otra.
+    gastoPorNombre.set(claveDeNombre(item.name), idGasto);
+    sentencias.push(
+      db.insert(fixedExpenses).values({
+        id: idGasto,
+        userId,
+        name: item.name,
+        amount: item.amount,
+        everyMonths: item.everyMonths,
+        nextDueDate: nextDue,
+        anchorDay: anchorDayFrom(nextDue, timeZone),
+        accountId: defaultAccountId,
+        categoryId,
+        isActive: true,
+        note: "",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+  }
+
+  // `batch` en vez de sentencias sueltas: una importación a medias dejaría
+  // categorías creadas sin sus gastos, o la mitad de la hoja cargada.
+  if (sentencias.length > 0) {
+    await db.batch(sentencias as [(typeof sentencias)[number], ...typeof sentencias]);
+  }
+
+  return c.json({ created, updated, createdCategories });
+});
+
+/** Máximo de filas por importación. Una hoja de gastos fijos no llega ni cerca. */
+const MAX_FILAS_IMPORTACION = 200;
+
+interface ImportItem {
+  name: string;
+  amount: number;
+  everyMonths: number;
+  categoryName: string;
+  nextDueDate: number | undefined;
+}
+
+/**
+ * Valida la lista de filas.
+ *
+ * Se revalida entera aunque el cliente ya la haya leído con
+ * `parsePastedFixedExpenses`: lo que llega por HTTP no es de fiar, y el parser
+ * del navegador es una comodidad, no una barrera.
+ */
+function parseImportItems(v: Validator): ImportItem[] {
+  const crudo = v.array("items", MAX_FILAS_IMPORTACION);
+  const items: ImportItem[] = [];
+
+  crudo.forEach((fila, indice) => {
+    if (typeof fila !== "object" || fila === null) {
+      v.reject(`items.${indice}`, "Cada fila debe ser un objeto");
+      return;
+    }
+
+    // Cada fila se valida con su propio Validator para reutilizar las mismas
+    // reglas de siempre; los errores se reetiquetan con el índice de la fila
+    // para que la pantalla pueda decir cuál falla.
+    const fv = new Validator(fila as Record<string, unknown>);
+    const name = fv.requiredString("name", 100);
+    const amount = fv.positiveAmount("amount");
+    const everyMonths = fv.number("everyMonths", { min: 1, max: MAX_MESES });
+    const categoryName = fv.optionalString("categoryName", 100).trim();
+    const nextDueDate = fv.has("nextDueDate") ? fv.timestamp("nextDueDate") : undefined;
+
+    if (!Number.isInteger(everyMonths)) {
+      fv.reject("everyMonths", "Debe ser un número entero de meses");
+    }
+
+    const errores = fv.collectErrors();
+    if (Object.keys(errores).length > 0) {
+      for (const [campo, mensaje] of Object.entries(errores)) {
+        v.reject(`items.${indice}.${campo}`, mensaje);
+      }
+      return;
+    }
+
+    items.push({ name, amount, everyMonths, categoryName, nextDueDate });
+  });
+
+  return items;
 }
 
 app.post("/", async (c) => {

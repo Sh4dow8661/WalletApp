@@ -4,6 +4,8 @@ import type {
   AccountInput,
   BudgetInput,
   CategoryInput,
+  FixedExpenseImportInput,
+  FixedExpenseImportResult,
   FixedExpenseInputDto,
   MarkPaidResult,
   ReconcileInput,
@@ -46,6 +48,7 @@ export const MUTACIONES = {
   guardarGastoFijo: ["gastos-fijos", "guardar"] as const,
   borrarGastoFijo: ["gastos-fijos", "borrar"] as const,
   pagarGastoFijo: ["gastos-fijos", "pagar"] as const,
+  importarGastosFijos: ["gastos-fijos", "importar"] as const,
 };
 
 /**
@@ -85,6 +88,13 @@ export function registrarMutaciones(queryClient: QueryClient): void {
   });
   queryClient.setMutationDefaults(MUTACIONES.borrarGastoFijo, {
     mutationFn: (id: string) => api.del<{ id: string }>(`/api/fixed-expenses/${id}`),
+  });
+  queryClient.setMutationDefaults(MUTACIONES.importarGastosFijos, {
+    // No lleva id generado por el cliente y aun así es segura de reenviar: el
+    // servidor casa por nombre, así que repetir la importación actualiza en vez
+    // de duplicar. Es idempotente por construcción, no por el identificador.
+    mutationFn: (input: FixedExpenseImportInput) =>
+      api.post<FixedExpenseImportResult>("/api/fixed-expenses/import", input),
   });
   queryClient.setMutationDefaults(MUTACIONES.pagarGastoFijo, {
     // El id de la transacción lo genera el cliente: reenviar un pago pendiente

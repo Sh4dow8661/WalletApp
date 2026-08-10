@@ -232,6 +232,30 @@ export class Validator {
     }
   }
 
+  /**
+   * Lista de elementos sin forma fija, con techo de tamaño.
+   *
+   * Devuelve los elementos en crudo: quien la use valida cada uno por su
+   * cuenta, normalmente con un `Validator` propio por elemento. El techo evita
+   * que una sola petición encadene miles de sentencias en un `batch`.
+   */
+  array(field: string, maxLength: number): unknown[] {
+    const v = this.body[field];
+    if (!Array.isArray(v)) {
+      this.errors[field] = "Debe ser una lista";
+      return [];
+    }
+    if (v.length === 0) {
+      this.errors[field] = "La lista está vacía";
+      return [];
+    }
+    if (v.length > maxLength) {
+      this.errors[field] = `No se admiten más de ${maxLength} elementos`;
+      return [];
+    }
+    return v as unknown[];
+  }
+
   /** Marca un error que no viene de un campo suelto (reglas cruzadas). */
   reject(field: string, message: string): void {
     this.errors[field] = message;
@@ -239,6 +263,16 @@ export class Validator {
 
   has(field: string): boolean {
     return this.body[field] !== undefined;
+  }
+
+  /**
+   * Los errores acumulados, sin lanzar.
+   *
+   * Lo usa quien valida una lista con un `Validator` por elemento y necesita
+   * reetiquetar los errores con el índice de la fila antes de devolverlos.
+   */
+  collectErrors(): Record<string, string> {
+    return { ...this.errors };
   }
 
   /** Lanza si hubo algún error. Se llama al final de cada handler. */
