@@ -100,7 +100,9 @@ export function DashboardScreen() {
             <h2 className="text-sm font-semibold opacity-70">Utilización del crédito</h2>
             <Link
               to="/cuentas"
-              className="text-xs font-medium text-primary hover:underline"
+              // min-h-11 = 44 px: el objetivo táctil mínimo de §10, igual que
+              // el "Ver todo" de las demás secciones.
+              className="-mr-2 flex min-h-11 items-center px-2 text-xs font-medium text-primary hover:underline"
             >
               Ver tarjetas
             </Link>

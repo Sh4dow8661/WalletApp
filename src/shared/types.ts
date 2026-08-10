@@ -193,6 +193,48 @@ export interface BudgetInput {
 }
 
 // ---------------------------------------------------------------------------
+// Gastos fijos
+// ---------------------------------------------------------------------------
+
+export interface FixedExpense {
+  id: string;
+  name: string;
+  /** Importe del recibo, no el equivalente mensual. */
+  amount: number;
+  /** Cada cuántos meses se paga. 1 = mensual, 12 = anual. */
+  everyMonths: number;
+  nextDueDate: number;
+  /** Día del mes al que está anclado (ver `lib/gastos-fijos.ts`). */
+  anchorDay: number;
+  accountId: string | null;
+  categoryId: string | null;
+  isActive: boolean;
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FixedExpenseInputDto {
+  id?: string;
+  name: string;
+  amount: number;
+  everyMonths: number;
+  nextDueDate: number;
+  accountId?: string | null;
+  categoryId?: string | null;
+  isActive?: boolean;
+  note?: string;
+}
+
+/** Resultado de marcar un gasto fijo como pagado. */
+export interface MarkPaidResult {
+  /** Transacción creada por el pago. */
+  transactionId: string;
+  /** Vencimiento ya avanzado al siguiente ciclo. */
+  nextDueDate: number;
+}
+
+// ---------------------------------------------------------------------------
 // Ajustes
 // ---------------------------------------------------------------------------
 

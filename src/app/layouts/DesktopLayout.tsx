@@ -6,6 +6,7 @@ import {
   PieChart,
   Plus,
   Receipt,
+  Repeat,
   Settings,
   Tag,
   Wallet,
@@ -42,6 +43,7 @@ const SECCIONES = [
 ] as const;
 
 const SECUNDARIAS = [
+  { to: "/gastos-fijos", label: "Gastos fijos", icon: Repeat },
   { to: "/cuentas", label: "Cuentas", icon: Wallet },
   { to: "/categorias", label: "Categorías", icon: Tag },
   { to: "/ajustes", label: "Ajustes", icon: Settings },

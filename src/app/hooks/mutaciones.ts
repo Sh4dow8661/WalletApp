@@ -4,6 +4,8 @@ import type {
   AccountInput,
   BudgetInput,
   CategoryInput,
+  FixedExpenseInputDto,
+  MarkPaidResult,
   ReconcileInput,
   ReconcileResult,
   TransactionInput,
@@ -40,6 +42,9 @@ export const MUTACIONES = {
   guardarPresupuesto: ["presupuestos", "guardar"] as const,
   borrarPresupuesto: ["presupuestos", "borrar"] as const,
   guardarAjustes: ["ajustes", "guardar"] as const,
+  guardarGastoFijo: ["gastos-fijos", "guardar"] as const,
+  borrarGastoFijo: ["gastos-fijos", "borrar"] as const,
+  pagarGastoFijo: ["gastos-fijos", "pagar"] as const,
 };
 
 /**
@@ -66,6 +71,22 @@ export function registrarMutaciones(queryClient: QueryClient): void {
   queryClient.setMutationDefaults(MUTACIONES.borrarCuenta, {
     mutationFn: (id: string) => api.del<{ id: string }>(`/api/accounts/${id}`),
   });
+  queryClient.setMutationDefaults(MUTACIONES.guardarGastoFijo, {
+    mutationFn: ({ id, nuevoId, ...input }: ConId<FixedExpenseInputDto>) =>
+      id
+        ? api.put<{ id: string }>(`/api/fixed-expenses/${id}`, input)
+        : api.post<{ id: string }>("/api/fixed-expenses", { ...input, id: nuevoId }),
+  });
+  queryClient.setMutationDefaults(MUTACIONES.borrarGastoFijo, {
+    mutationFn: (id: string) => api.del<{ id: string }>(`/api/fixed-expenses/${id}`),
+  });
+  queryClient.setMutationDefaults(MUTACIONES.pagarGastoFijo, {
+    // El id de la transacción lo genera el cliente: reenviar un pago pendiente
+    // desde la cola offline no crea dos gastos (§9).
+    mutationFn: ({ id, ...input }: { id: string; transactionId?: string }) =>
+      api.post<MarkPaidResult>(`/api/fixed-expenses/${id}/pagar`, input),
+  });
+
   queryClient.setMutationDefaults(MUTACIONES.cuadrarCuenta, {
     // `adjustmentId` lo genera el cliente, así que reenviar un cuadre pendiente
     // desde la cola offline no crea dos ajustes (§9).

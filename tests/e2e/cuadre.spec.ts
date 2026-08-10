@@ -7,7 +7,12 @@ import { expect, test } from "@playwright/test";
  * D1 local y reutilizar la de otro test los haría depender del orden.
  */
 
-/** Crea una cuenta con saldo y colchón conocidos. */
+/**
+ * Crea una cuenta con saldo y colchón conocidos, o devuelve la que ya existe.
+ *
+ * Idempotente a propósito: los tests comparten la misma D1 local y sin esto
+ * cada ejecución iría dejando cuentas duplicadas con el mismo nombre.
+ */
 async function crearCuenta(
   page: import("@playwright/test").Page,
   nombre: string,
@@ -26,6 +31,11 @@ async function crearCuenta(
         return r.json().catch(() => null);
       };
 
+      type Cuenta = { id: string; name: string };
+      const existentes = (await j("GET", "/api/accounts")) as Cuenta[];
+      const yaEsta = existentes.find((c) => c.name === nombre);
+      if (yaEsta) return yaEsta.id;
+
       await j("POST", "/api/accounts", {
         name: nombre,
         type: "BANK",
@@ -37,7 +47,7 @@ async function crearCuenta(
         includeInTotal: true,
       });
 
-      const cuentas = (await j("GET", "/api/accounts")) as { id: string; name: string }[];
+      const cuentas = (await j("GET", "/api/accounts")) as Cuenta[];
       return cuentas.find((c) => c.name === nombre)!.id;
     },
     { nombre, balance, bufferAmount },
@@ -45,24 +55,27 @@ async function crearCuenta(
 }
 
 test("con colchón se enseñan las dos cifras: balance y disponible", async ({ page }) => {
-  await crearCuenta(page, "Colchon E2E", 1000, 300);
+  const id = await crearCuenta(page, "Colchon E2E", 1000, 300);
 
   await page.goto("/cuentas");
   await page.waitForLoadState("networkidle");
 
-  const fila = page.getByText("Colchon E2E").locator("../../..");
+  // Por `data-cuenta` y no por el nombre: "Colchon E2E" es prefijo de "Sin
+  // Colchon E2E" y de "Bajo Colchon E2E", así que buscar por texto casaría tres
+  // filas a la vez.
+  const fila = page.locator(`[data-cuenta="${id}"]`);
   // El dinero sigue en la cuenta; lo que baja es el disponible.
   await expect(fila).toContainText("1,000.00");
   await expect(fila).toContainText("700.00 disponible");
 });
 
 test("una cuenta sin colchón no enseña nada de más", async ({ page }) => {
-  await crearCuenta(page, "Sin Colchon E2E", 500, 0);
+  const id = await crearCuenta(page, "Sin Colchon E2E", 500, 0);
 
   await page.goto("/cuentas");
   await page.waitForLoadState("networkidle");
 
-  const fila = page.getByText("Sin Colchon E2E").locator("../../..");
+  const fila = page.locator(`[data-cuenta="${id}"]`);
   await expect(fila).toContainText("500.00");
   await expect(fila).not.toContainText("disponible");
 });
@@ -77,8 +90,18 @@ test("el cuadre enseña la diferencia antes de tocar nada y crea el ajuste", asy
 
   await expect(page.getByText("Saldo según la app")).toBeVisible();
 
-  // El banco dice 620: faltan 120 por registrar.
-  await page.getByLabel("Saldo real").fill("620");
+  // El saldo real se calcula a partir del que tenga la cuenta AHORA, no con un
+  // número fijo: si el test ya corrió antes, la cuenta quedó cuadrada en ese
+  // valor y volver a teclearlo no produciría ninguna diferencia.
+  const saldoActual = await page.evaluate(async (id) => {
+    const cuentas = (await (await fetch("/api/accounts")).json()) as {
+      id: string;
+      currentBalance: number;
+    }[];
+    return cuentas.find((c) => c.id === id)!.currentBalance;
+  }, id);
+
+  await page.getByLabel("Saldo real").fill(String(saldoActual + 120));
 
   await expect(page.getByText("Diferencia")).toBeVisible();
   await expect(page.getByText("Se creará un ingreso de")).toBeVisible();

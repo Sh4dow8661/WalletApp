@@ -1,5 +1,4 @@
 import { AlertTriangle } from "lucide-react";
-import { Link } from "react-router";
 
 import {
   CREDIT_LEVEL_LABELS,
@@ -68,29 +67,25 @@ export function NivelBadge({
 export function BarraUtilizacion({
   utilizacion,
   currency,
-  enlaceConfigurar,
+  /** Texto de ayuda cuando falta el límite. La fila entera ya es clicable. */
+  pistaSinLimite,
   compacta = false,
 }: {
   utilizacion: CardUtilization;
   currency: string;
-  /** A dónde va el "configúralo" cuando falta el límite. */
-  enlaceConfigurar?: string;
+  pistaSinLimite?: string;
   compacta?: boolean;
 }) {
   const { percent, level, debt, limit, available, isOverLimit } = utilizacion;
 
   if (percent === null || level === null) {
+    // Sin enlace propio: esto vive dentro del <a> de la fila, y un <a> dentro
+    // de otro <a> es HTML inválido. Además, un enlace de texto suelto queda por
+    // debajo del objetivo táctil de 44 px que exige §10.
     return (
       <p className="text-xs opacity-60">
         Sin límite configurado
-        {enlaceConfigurar && (
-          <>
-            {" · "}
-            <Link to={enlaceConfigurar} className="text-primary hover:underline">
-              configúralo
-            </Link>
-          </>
-        )}
+        {pistaSinLimite && ` · ${pistaSinLimite}`}
       </p>
     );
   }

@@ -825,6 +825,63 @@ Decisiones que conviene no deshacer:
 - El `adjustmentId` lo genera el cliente, así que reenviar un cuadre pendiente
   desde la cola offline no crea dos ajustes (§9).
 
+---
+
+## 14. Gastos fijos (migración 0004)
+
+No todo se paga cada mes. Un seguro de 600 al año no cuesta 600 un mes y 0 los
+demás: cuesta **50 al mes** que habría que ir apartando.
+
+    equivalente mensual = importe del recibo / cada cuántos meses se paga
+
+La pantalla enseña **dos totales distintos, y los dos hacen falta**: el
+equivalente mensual de todos los gastos y lo que toca pagar _este_ mes concreto.
+Un mes sin recibos tiene el segundo a 0 aunque el primero sea alto, y eso es
+justo lo que evita creer que ese mes sobra dinero.
+
+### Redondeo del equivalente
+
+**No se redondea en el cálculo, solo al pintar.** Redondeando antes, el total
+sería la suma de cifras ya recortadas: doce gastos de 100/3 (33,3333…) darían
+399,96 en vez de 400.
+
+La contrapartida es que la suma de lo que se ve línea a línea puede diferir en
+algún céntimo del total que se enseña. Se prefiere así: un céntimo en una línea
+se perdona, un total que no cuadra con la realidad no.
+
+### El caso del día 31 — `anchor_day`
+
+Un recibo del 31 de enero no puede vencer el 31 de febrero: se recorta al último
+día del mes, reutilizando el mismo `zonedTime` que ya usan los períodos de
+presupuesto (§8.5).
+
+**La clave es que el ancla se guarda aparte, en `anchor_day`.** Si el siguiente
+salto se calculase desde el vencimiento recortado, el recibo se quedaría clavado
+en el día 28 para siempre:
+
+|     | Derivando del último vencimiento | Con `anchor_day` (lo implementado) |
+| --- | -------------------------------- | ---------------------------------- |
+| ene | 31                               | 31                                 |
+| feb | 28                               | 28                                 |
+| mar | **28** ← mal                     | **31**                             |
+| abr | 28                               | 30                                 |
+| may | 28                               | 31                                 |
+
+Hay tests unitarios y de API de esa serie exacta, incluido el 29 de febrero de
+un año bisiesto.
+
+### Marcar como pagado
+
+Crea la transacción **real** en la cuenta indicada y avanza el vencimiento, todo
+en un mismo batch: o pasan las dos cosas o ninguna. **Nunca ocurre solo** — la
+app no genera transacciones automáticas, hace falta confirmar.
+
+Borrar un gasto fijo es lógico y **no borra los pagos ya registrados**: son
+gastos que ocurrieron de verdad y borrarlos descuadraría los balances.
+
+Un gasto inactivo sigue en la lista pero ni suma al equivalente ni avisa, y cae
+siempre al final de la ordenación.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se

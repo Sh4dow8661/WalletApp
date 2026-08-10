@@ -111,6 +111,9 @@ test("una tarjeta sin límite no inventa un porcentaje", async ({ page }) => {
   const tarjeta = page.getByRole("link", { name: /Sin Limite E2E/ });
   await expect(tarjeta).toContainText("Sin límite configurado");
   await expect(tarjeta).not.toContainText("%");
+  // La fila entera lleva a la edición: no hace falta un enlace anidado, que
+  // además sería HTML inválido y quedaría bajo el objetivo táctil de §10.
+  await expect(tarjeta.locator("a")).toHaveCount(0);
 });
 
 test("el campo de límite solo aparece en las tarjetas", async ({ page }) => {

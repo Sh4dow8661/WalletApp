@@ -261,11 +261,20 @@ function FilaCuenta({ cuenta, currency }: { cuenta: Account; currency: string })
   const bajoColchon = isBelowBuffer(cuenta);
 
   return (
-    <Card className="transition-colors hover:bg-black/2 dark:hover:bg-white/8">
+    // `data-cuenta` da a los e2e un ancla estable para la fila entera, igual que
+    // el `data-buscar` del layout de escritorio. Sin él habría que trepar por el
+    // DOM desde el nombre, y un nombre que sea prefijo de otro ("Colchón" y "Sin
+    // colchón") haría casar dos filas a la vez.
+    <Card
+      data-cuenta={cuenta.id}
+      className="transition-colors hover:bg-black/2 dark:hover:bg-white/8"
+    >
       <div className="flex items-center gap-3">
         <Link
           to={`/cuentas/${cuenta.id}`}
-          className="flex min-w-0 flex-1 items-center gap-3"
+          // min-h-11 = 44 px, el objetivo táctil de §10: al dejar de envolver
+          // toda la tarjeta, este enlace se quedaba por debajo en móvil.
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
         >
           <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
           <div className="min-w-0 flex-1">
@@ -312,7 +321,8 @@ function FilaCuenta({ cuenta, currency }: { cuenta: Account; currency: string })
             ? "Sin cuadrar todavía"
             : `Cuadrada el ${new Date(cuenta.lastReconciledAt).toLocaleDateString("es", { day: "numeric", month: "short" })}`}
         </span>
-        <Button asChild size="sm" variant="ghost">
+        {/* `sm` mide 36 px de alto y §10 exige 44 en móvil. */}
+        <Button asChild size="sm" variant="ghost" className="min-h-11">
           <Link to={`/cuentas/${cuenta.id}/cuadrar`}>
             <Scale />
             Cuadrar
@@ -357,7 +367,7 @@ function FilaTarjeta({ cuenta, currency }: { cuenta: Account; currency: string }
         <BarraUtilizacion
           utilizacion={utilizacion}
           currency={currency}
-          enlaceConfigurar={`/cuentas/${cuenta.id}`}
+          pistaSinLimite="toca para ponerlo"
         />
       </Card>
     </Link>

@@ -13,6 +13,7 @@ import { BudgetFormScreen, BudgetsScreen } from "./routes/Budgets.tsx";
 import { CalendarScreen } from "./routes/Calendar.tsx";
 import { CategoriesScreen, CategoryFormScreen } from "./routes/Categories.tsx";
 import { DashboardScreen } from "./routes/Dashboard.tsx";
+import { FixedExpenseFormScreen, FixedExpensesScreen } from "./routes/FixedExpenses.tsx";
 import { ReconcileScreen } from "./routes/Reconcile.tsx";
 import { SettingsScreen } from "./routes/Settings.tsx";
 import { StatisticsScreen } from "./routes/Statistics.tsx";
@@ -140,6 +141,11 @@ export function AppRouter() {
           <Route path="categorias" element={<CategoriesScreen />}>
             <Route path="nueva" element={<CategoryFormScreen />} />
             <Route path=":id" element={<CategoryFormScreen />} />
+          </Route>
+
+          <Route path="gastos-fijos" element={<FixedExpensesScreen />}>
+            <Route path="nuevo" element={<FixedExpenseFormScreen />} />
+            <Route path=":id" element={<FixedExpenseFormScreen />} />
           </Route>
 
           <Route path="estadisticas" element={<StatisticsScreen />} />

@@ -176,6 +176,43 @@ export const transactionBudgetRef = sqliteTable(
   ],
 );
 
+/**
+ * Gastos fijos recurrentes (seguros, suscripciones, alquiler…).
+ *
+ * `everyMonths` permite periodicidades que no son mensuales, que es lo que hace
+ * falta para calcular el costo mensual equivalente. Ver `lib/gastos-fijos.ts`.
+ */
+export const fixedExpenses = sqliteTable(
+  "fixed_expenses",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    amount: real("amount").notNull(),
+    /** 1 = mensual, 12 = anual. */
+    everyMonths: integer("every_months").notNull(),
+    nextDueDate: integer("next_due_date").notNull(),
+    /**
+     * Día del mes al que está anclado. Se guarda aparte del vencimiento para
+     * que un recibo del 31 no se quede clavado en el 28 tras pasar por febrero
+     * (ver la migración 0004).
+     */
+    anchorDay: integer("anchor_day").notNull(),
+    /** De dónde sale el dinero. Puede ser una tarjeta. */
+    accountId: text("account_id"),
+    categoryId: text("category_id"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    note: text("note").notNull().default(""),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    deletedAt: integer("deleted_at"),
+  },
+  (t) => [
+    index("idx_fixed_expenses_user").on(t.userId),
+    index("idx_fixed_expenses_due").on(t.userId, t.nextDueDate),
+  ],
+);
+
 /** Sustituye a SettingsDataStore. Una fila por usuario. */
 export const userSettings = sqliteTable("user_settings", {
   userId: text("user_id").primaryKey(),
