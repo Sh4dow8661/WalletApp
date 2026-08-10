@@ -115,17 +115,24 @@ export function DesktopLayout() {
 
   return (
     <div className="flex min-h-dvh">
+      {/*
+        Tres zonas: logo fijo arriba, lista con scroll en medio y Atajos fijo
+        abajo. Antes era una sola columna sin `overflow`, así que en cuanto la
+        lista no cabía —con la ventana baja, o con el rail estrecho, donde cada
+        ítem ocupa el doble por llevar el texto debajo del icono— los últimos
+        elementos quedaban recortados y no había forma de llegar a ellos.
+      */}
       <nav
         aria-label="Navegación principal"
         className={cn(
-          "sticky top-0 flex h-dvh shrink-0 flex-col gap-1 border-r border-black/8 p-3",
+          "sticky top-0 flex h-dvh shrink-0 flex-col border-r border-black/8 p-3",
           "dark:border-white/10",
           esEscritorio ? "w-60" : "w-20",
         )}
       >
         <div
           className={cn(
-            "mb-3 flex items-center gap-2 px-2 py-2",
+            "mb-3 flex shrink-0 items-center gap-2 px-2 py-2",
             !esEscritorio && "justify-center",
           )}
         >
@@ -137,17 +144,29 @@ export function DesktopLayout() {
           )}
         </div>
 
-        {SECCIONES.map((seccion) => (
-          <ItemNav key={seccion.to} {...seccion} ancho={esEscritorio} />
-        ))}
+        {/*
+          `min-h-0` es imprescindible: dentro de un flex column, un hijo `flex-1`
+          tiene `min-height: auto` por defecto y se niega a encoger por debajo de
+          su contenido, así que `overflow-y-auto` nunca llegaría a activarse.
+          `overscroll-contain` evita que al llegar al final se arrastre la página.
+        */}
+        <div
+          data-menu-secciones
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+        >
+          {SECCIONES.map((seccion) => (
+            <ItemNav key={seccion.to} {...seccion} ancho={esEscritorio} />
+          ))}
 
-        <hr className="my-2 border-black/8 dark:border-white/10" />
+          <hr className="my-2 shrink-0 border-black/8 dark:border-white/10" />
 
-        {SECUNDARIAS.map((seccion) => (
-          <ItemNav key={seccion.to} {...seccion} end={false} ancho={esEscritorio} />
-        ))}
+          {SECUNDARIAS.map((seccion) => (
+            <ItemNav key={seccion.to} {...seccion} end={false} ancho={esEscritorio} />
+          ))}
+        </div>
 
-        <div className="mt-auto">
+        {/* Fuera del contenedor con scroll: siempre alcanzable. */}
+        <div className="mt-1 shrink-0 border-t border-black/8 pt-1 dark:border-white/10">
           <button
             type="button"
             onClick={() => setAyudaAbierta(true)}

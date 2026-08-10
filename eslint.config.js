@@ -62,10 +62,15 @@ export default tseslint.config(
   },
 
   // Configuración, scripts de apoyo y tests: corren en Node.
+  //
+  // También llevan los globals del navegador porque el cuerpo de un
+  // `page.evaluate` se ejecuta DENTRO de la página, aunque esté escrito en un
+  // archivo de Node: sin esto, cada `document` o `window` de un test de
+  // Playwright se marcaría como `no-undef`.
   {
     files: ["*.config.{ts,js}", "scripts/**/*.{mjs,js,ts}", "tests/**/*.ts"],
     languageOptions: {
-      globals: globals.node,
+      globals: { ...globals.node, ...globals.browser },
     },
   },
 
