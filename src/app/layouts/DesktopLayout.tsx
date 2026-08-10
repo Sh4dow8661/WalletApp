@@ -34,19 +34,52 @@ import { cn } from "../lib/cn.ts";
  * monitor ancho.
  */
 
+/**
+ * `corto` es el rótulo del rail estrecho.
+ *
+ * En 80 px de barra quedan unos 55 útiles, donde a 10 px de fuente entran diez
+ * caracteres largos. "Transacciones" no cabe ahí de ninguna manera: o se
+ * trunca con puntos suspensivos, o ensancha la barra y saca scroll horizontal.
+ * Con una etiqueta corta se lee entera, que es lo que se quería desde el
+ * principio. El nombre completo sigue estando en el `title`.
+ */
 const SECCIONES = [
-  { to: "/", label: "Inicio", icon: LayoutDashboard, end: true },
-  { to: "/transacciones", label: "Transacciones", icon: Receipt, end: false },
-  { to: "/presupuestos", label: "Presupuestos", icon: PieChart, end: false },
-  { to: "/estadisticas", label: "Estadísticas", icon: BarChart3, end: false },
-  { to: "/calendario", label: "Calendario", icon: CalendarDays, end: false },
+  { to: "/", label: "Inicio", corto: "Inicio", icon: LayoutDashboard, end: true },
+  {
+    to: "/transacciones",
+    label: "Transacciones",
+    corto: "Movim.",
+    icon: Receipt,
+    end: false,
+  },
+  {
+    to: "/presupuestos",
+    label: "Presupuestos",
+    corto: "Presup.",
+    icon: PieChart,
+    end: false,
+  },
+  {
+    to: "/estadisticas",
+    label: "Estadísticas",
+    corto: "Estad.",
+    icon: BarChart3,
+    end: false,
+  },
+  {
+    to: "/calendario",
+    label: "Calendario",
+    corto: "Calend.",
+    icon: CalendarDays,
+    end: false,
+  },
 ] as const;
 
 const SECUNDARIAS = [
-  { to: "/gastos-fijos", label: "Gastos fijos", icon: Repeat },
-  { to: "/cuentas", label: "Cuentas", icon: Wallet },
-  { to: "/categorias", label: "Categorías", icon: Tag },
-  { to: "/ajustes", label: "Ajustes", icon: Settings },
+  { to: "/gastos-fijos", label: "Gastos fijos", corto: "Fijos", icon: Repeat },
+  { to: "/cuentas", label: "Cuentas", corto: "Cuentas", icon: Wallet },
+  { to: "/categorias", label: "Categorías", corto: "Categ.", icon: Tag },
+  { to: "/ajustes", label: "Ajustes", corto: "Ajustes", icon: Settings },
 ] as const;
 
 export function DesktopLayout() {
@@ -152,7 +185,15 @@ export function DesktopLayout() {
         */}
         <div
           data-menu-secciones
-          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+          className={cn(
+            "flex min-h-0 flex-1 flex-col gap-1 overscroll-contain",
+            // Vertical sí, horizontal NUNCA: con `auto` en los dos ejes, un
+            // ítem que se pasa cuatro píxeles saca una barra horizontal con sus
+            // flechas y deja el menú desplazable de lado.
+            "overflow-y-auto overflow-x-hidden",
+            // Y la barra no puede robar ancho, o los rótulos se recortan.
+            "scroll-sin-barra",
+          )}
         >
           {SECCIONES.map((seccion) => (
             <ItemNav key={seccion.to} {...seccion} ancho={esEscritorio} />
@@ -274,12 +315,15 @@ export function DesktopLayout() {
 function ItemNav({
   to,
   label,
+  corto,
   icon: Icon,
   end,
   ancho,
 }: {
   to: string;
   label: string;
+  /** Rótulo del rail estrecho. Si falta, se usa el largo. */
+  corto?: string;
   icon: React.ComponentType<{ className?: string }>;
   end?: boolean;
   ancho: boolean;
@@ -293,6 +337,11 @@ function ItemNav({
         cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          // `min-w-0` para que el enlace pueda encoger por debajo del ancho de
+          // su texto. Sin él, `truncate` no llega a activarse nunca: el
+          // `white-space: nowrap` que lleva dentro fija el ancho mínimo al del
+          // rótulo entero y es el propio ítem el que ensancha la barra.
+          "min-w-0",
           !ancho && "flex-col gap-1 px-1 py-2 text-[10px]",
           isActive
             ? "bg-primary-light text-primary-dark dark:bg-primary/20 dark:text-primary-light"
@@ -301,7 +350,10 @@ function ItemNav({
       }
     >
       <Icon className="size-5 shrink-0" />
-      <span className={cn(!ancho && "truncate")}>{label}</span>
+      {/* `max-w-full` ata el rótulo al ancho disponible en los dos modos, no
+          solo en el rail: en la barra ancha un nombre largo lo desbordaba
+          igual. */}
+      <span className="max-w-full truncate">{ancho ? label : (corto ?? label)}</span>
     </NavLink>
   );
 }
