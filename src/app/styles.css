@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/*
+ * Identidad visual portada de ui/theme/Color.kt de la app Android.
+ * Los valores son los mismos, no aproximaciones: si cambian aquí, dejan de
+ * coincidir con las capturas y los iconos de la app original.
+ */
+@theme {
+  --color-primary: #0e9f6e;
+  --color-primary-dark: #057a55;
+  --color-primary-light: #def7ec;
+  --color-secondary: #3b82f6;
+  --color-tertiary: #84cc16;
+
+  --color-income: #10b981;
+  --color-expense: #ef4444;
+  --color-transfer: #3b82f6;
+  --color-warning: #f59e0b;
+
+  --color-surface-light: #fafafa;
+  --color-surface-dark: #121212;
+  --color-on-surface-light: #111827;
+  --color-on-surface-dark: #f3f4f6;
+
+  /* Paleta de categorías (CategoryPalette, 15 colores en su orden original). */
+  --color-cat-1: #ff7043;
+  --color-cat-2: #42a5f5;
+  --color-cat-3: #8d6e63;
+  --color-cat-4: #ab47bc;
+  --color-cat-5: #ef5350;
+  --color-cat-6: #ec407a;
+  --color-cat-7: #5c6bc0;
+  --color-cat-8: #ffa726;
+  --color-cat-9: #66bb6a;
+  --color-cat-10: #26a69a;
+  --color-cat-11: #29b6f6;
+  --color-cat-12: #9ccc65;
+  --color-cat-13: #78909c;
+  --color-cat-14: #d4e157;
+  --color-cat-15: #ff8a65;
+}
+
+/* El tema se controla con la clase `dark` en <html>, que fija el ajuste guardado
+   del usuario (LIGHT/DARK/SYSTEM) en vez de depender solo del sistema. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    background-color: var(--color-surface-light);
+    color: var(--color-on-surface-light);
+  }
+
+  html.dark {
+    background-color: var(--color-surface-dark);
+    color: var(--color-on-surface-dark);
+  }
+
+  body {
+    min-height: 100dvh;
+    /* Respeta el notch y la barra de gestos en móvil (§9). */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* §10: respetar prefers-reduced-motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

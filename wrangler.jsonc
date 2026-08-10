@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "walletapp",
+  // Tope de lo que soporta el binario de workerd que trae esta versión de
+  // wrangler/miniflare. Poner una fecha posterior hace que `vite dev` no arranque
+  // con ERR_RUNTIME_FAILURE. Al actualizar wrangler se puede subir.
+  "compatibility_date": "2026-08-08",
+  // Better Auth y Drizzle usan APIs de Node (crypto, buffer).
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker/index.ts",
+
+  // Un solo Worker sirve la SPA y la API.
+  // - not_found_handling: cualquier ruta que no sea un archivo devuelve index.html,
+  //   que es lo que necesita React Router para el enrutado del lado del cliente.
+  // - run_worker_first: /api/* va al Worker antes que a los assets. Al declararlo
+  //   explícitamente dejamos de depender de la heurística de la cabecera
+  //   Sec-Fetch-Mode. Better Auth cuelga de /api/auth/*, así que ya queda dentro.
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // D1 es la fuente de verdad. El database_id no es un secreto (§16); los
+  // secretos (BETTER_AUTH_SECRET) van con `wrangler secret put`, nunca aquí.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "walletapp-db",
+      "database_id": "824a3d16-d699-4556-bad6-b9d100604172",
+      "migrations_dir": "migrations",
+    },
+  ],
+
+  "vars": {
+    // Registro CERRADO desde el 9-ago-2026, con la cuenta del usuario ya creada
+    // (§11). La URL del Worker es pública, así que dejarlo abierto solo servía
+    // para que cualquiera que diese con ella pudiera registrarse. Para volver a
+    // abrirlo —por ejemplo, para dar de alta a alguien— se pone "true", se
+    // despliega, se crea la cuenta y se vuelve a cerrar.
+    "ALLOW_SIGNUP": "false",
+  },
+}

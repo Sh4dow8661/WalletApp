@@ -1,0 +1,11 @@
+dist/
+node_modules/
+.wrangler/
+coverage/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+worker-configuration.d.ts
+
+# Proyecto Android heredado: se deja exactamente como estaba.
+legacy-android/

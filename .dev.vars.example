@@ -1,0 +1,12 @@
+# Copia este archivo a `.dev.vars` y rellena los valores para desarrollo local.
+# `.dev.vars` NO se versiona.
+#
+# Genera un secreto con:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+#
+# En producción va como secreto del Worker, nunca en wrangler.jsonc:
+#   pnpm exec wrangler secret put BETTER_AUTH_SECRET
+BETTER_AUTH_SECRET="genera-uno-de-32-bytes"
+
+# Pon "false" para cerrar el registro público una vez creada tu cuenta (§11).
+ALLOW_SIGNUP="true"

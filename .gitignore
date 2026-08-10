@@ -1,38 +1,60 @@
-# Android / Gradle
+# === PWA (Node / Vite / Cloudflare) ===
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
+# ...salvo la plantilla, que sí documenta qué variables hacen falta.
+!.dev.vars.example
+*.local
+.vite/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+
+# Caché incremental de tsc -b. worker-configuration.d.ts SÍ se versiona (lo
+# genera `pnpm cf-typegen`, pero versionarlo evita que el typecheck falle en CI
+# antes de haberlo ejecutado).
+*.tsbuildinfo
+
+# === Android heredado (legacy-android/) ===
 *.iml
 .gradle/
-/local.properties
-/keystore.properties
-/.idea/
-.DS_Store
-/build/
+.kotlin/
+legacy-android/local.properties
+legacy-android/keystore.properties
 /captures/
 .externalNativeBuild/
 .cxx/
+legacy-android/app/src/main/assets/
 
-# Build outputs
+# Salidas de compilación
 **/build/
 *.apk
 *.aab
 *.keystore
 *.jks
+*.class
 
 # Logs
 *.log
 
-# Generated files
-/app/src/main/assets/
-
-# Kotlin
-*.class
-
-# OS
+# Sistema operativo
+.DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# IntelliJ / Android Studio
+# IntelliJ / Android Studio / VS Code
 *.ipr
 *.iws
 .idea/
 out/
+
+# Capturas que genera Playwright: se regeneran en cada ejecución.
+tests/e2e/capturas/
+tests/e2e/.auth/
+test-results/

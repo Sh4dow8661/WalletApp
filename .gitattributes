@@ -1,0 +1,24 @@
+# Normaliza los finales de línea: LF en el repositorio siempre. Se trabaja en
+# Windows pero el build de Cloudflare corre en Linux; sin esto cada archivo
+# tocado en un lado aparece entero como modificado en el otro.
+* text=auto eol=lf
+
+# El wrapper de Gradle para Windows tiene que conservar CRLF o cmd.exe no lo ejecuta.
+legacy-android/gradlew.bat text eol=crlf
+
+# Binarios: que git no intente convertir nada.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jks binary
+
+# Generados: no cuentan como cambios propios en las estadísticas ni en los diffs.
+pnpm-lock.yaml linguist-generated=true -diff
+worker-configuration.d.ts linguist-generated=true -diff
