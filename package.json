@@ -1,6 +1,6 @@
 {
   "name": "walletapp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "WalletApp — PWA de finanzas personales sobre Cloudflare Workers + D1",
   "license": "MIT",
   "private": true,
