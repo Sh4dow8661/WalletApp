@@ -925,6 +925,65 @@ pantalla, así que no se ha añadido aquí:
   selección; en ese modo las filas marcan en vez de navegar, y la acción aparece
   en una barra fija abajo, al alcance del pulgar.
 
+---
+
+## 16. Auditoría del ciclo de vida de una transferencia
+
+Revisión pedida expresamente para comprobar que el bug de §8.2 está cerrado, sin
+reescribir nada. **Conclusión: está cerrado.** No hizo falta ningún arreglo.
+
+### Qué se auditó y qué salió
+
+| Operación                     | Resultado                                                       |
+| ----------------------------- | --------------------------------------------------------------- |
+| Crear                         | Dos patas, mismo grupo, cuentas cruzadas ✔                      |
+| Editar importe, fecha o nota  | Las dos se mueven juntas ✔                                      |
+| Cambiar **solo** el origen    | El dinero sale de la cuenta nueva; el destino no se toca ✔      |
+| Cambiar **solo** el destino   | Simétrico ✔                                                     |
+| Intercambiar origen y destino | Invierte el sentido sin dejar restos ✔                          |
+| Borrar la transferencia       | Se lleva las dos patas ✔                                        |
+| Borrar una **cuenta**         | Se lleva las dos patas; el saldo de la otra vuelve a su sitio ✔ |
+| Exportar e importar JSON      | Sobrevive con su par, su grupo y sus saldos ✔                   |
+| 5 ediciones seguidas          | Patrimonio total a 0 en cada paso ✔                             |
+
+### El hueco `ON DELETE CASCADE` frente a `ON DELETE SET NULL`
+
+En `transactions`, `account_id` es CASCADE y `transfer_account_id` es SET NULL.
+La sospecha era: al borrar una cuenta, una pata se borra y la otra sobrevive
+convertida en una transferencia a ninguna parte.
+
+**El hueco existe en el esquema y está demostrado con un test** que borra la
+cuenta con SQL directo, saltándose el API: la pata de la cuenta borrada
+desaparece y la otra queda con `transfer_account_id = NULL`. Las claves foráneas
+de D1 están activas, así que el mecanismo es real.
+
+**Pero no es alcanzable**, por dos motivos independientes:
+
+1. **El borrado de cuentas del API es lógico** (`deleted_at`), así que la clave
+   foránea nunca se dispara. Y `DELETE /api/accounts/:id` marca además todas las
+   transacciones donde la cuenta aparece **como origen o como destino**, así que
+   tampoco deja patas sueltas por su cuenta.
+2. **El único borrado físico de cuentas de todo el código** está en la
+   importación (`sentenciasDeBorrado`), y ahí las transacciones se borran
+   **antes** que las cuentas: cuando llega el `DELETE` de `wallet_accounts` ya no
+   queda ninguna fila que cascadear.
+
+Por eso **no se ha tocado el esquema**: cambiar la clave foránea no arreglaría
+nada que hoy pueda romperse, y alterar una FK en SQLite obliga a recrear la
+tabla entera — riesgo real a cambio de ningún beneficio.
+
+Lo que sí quedan son **dos tests de regresión** que vigilan las condiciones de
+las que depende esa conclusión: que ninguna ruta del API borre cuentas
+físicamente, y que tras importar no quede ninguna transacción apuntando a una
+cuenta inexistente. Si alguien añade un borrado físico, fallan.
+
+### Transferencias huérfanas de Android
+
+El importador ya las trata: empareja las dos patas por importe, fecha y cuentas,
+y las que no encuentran pareja **se importan igual** —el dinero estuvo ahí— y se
+cuentan aparte en `transferenciasHuerfanas` del resumen, para poder revisarlas.
+Al duplicar, una pata huérfana se salta: sin destino no hay par que reconstruir.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se
