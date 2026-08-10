@@ -11,6 +11,8 @@ import type {
   DailySpend,
   DashboardSummary,
   FixedExpense,
+  FixedExpenseImportInput,
+  FixedExpenseImportResult,
   FixedExpenseInputDto,
   MarkPaidResult,
   MonthlyTrendPoint,
@@ -219,6 +221,26 @@ export function useDeleteFixedExpense() {
   return useMutation<{ id: string }, Error, string>({
     mutationKey: MUTACIONES.borrarGastoFijo,
     onSuccess: invalidar,
+  });
+}
+
+/**
+ * Importa gastos fijos pegados desde la hoja de cálculo.
+ *
+ * Además de los gastos puede crear categorías, así que invalida también esa
+ * clave: si no, la pantalla seguiría sin conocer las categorías recién creadas
+ * y los gastos importados saldrían como «sin categoría» hasta recargar.
+ */
+export function useImportFixedExpenses() {
+  const queryClient = useQueryClient();
+  const invalidar = useInvalidarDatos();
+
+  return useMutation<FixedExpenseImportResult, Error, FixedExpenseImportInput>({
+    mutationKey: MUTACIONES.importarGastosFijos,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: claves.categorias });
+      invalidar();
+    },
   });
 }
 

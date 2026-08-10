@@ -43,6 +43,28 @@ export function monthlyEquivalent(expense: FixedExpenseInput): number {
   return expense.amount / expense.everyMonths;
 }
 
+/**
+ * Semanas por mes que usa la app: **4, no 4,33**.
+ *
+ * Es una decisión deliberada y no un descuido. Lo correcto en calendario sería
+ * 365,25 / 12 / 7 ≈ 4,348, pero la hoja de cálculo del usuario —que es la
+ * fuente de estos datos y donde él lee— divide entre 4. Usar aquí el número
+ * «bueno» dejaría la app y el Excel discrepando en cada línea (556,25 / 4 =
+ * 139,06 frente a 556,25 / 4,348 = 127,93) y la cifra dejaría de servirle para
+ * comparar.
+ *
+ * Si algún día se quiere la conversión de calendario, hay que cambiarla en el
+ * Excel y aquí a la vez, nunca solo en un lado.
+ */
+export const SEMANAS_POR_MES = 4;
+
+/**
+ * Equivalente semanal, derivado del mensual. Sin redondear, como el mensual.
+ */
+export function weeklyEquivalent(monthly: number): number {
+  return monthly / SEMANAS_POR_MES;
+}
+
 // ---------------------------------------------------------------------------
 // Vencimientos
 // ---------------------------------------------------------------------------
@@ -203,5 +225,73 @@ export function sortFixedExpenses<T extends FixedExpenseInput>(
     return sort === "vencimiento"
       ? a.nextDueDate - b.nextDueDate
       : monthlyEquivalent(b) - monthlyEquivalent(a);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Agrupación por categoría
+// ---------------------------------------------------------------------------
+
+/** Rótulo de los gastos que no tienen categoría asignada. */
+export const SIN_CATEGORIA = "Sin categoría";
+
+export interface FixedExpenseGroup<T> {
+  /** null en el grupo de los que no tienen categoría. */
+  categoryId: string | null;
+  categoryName: string;
+  expenses: T[];
+  /** Suma de equivalentes mensuales de los ACTIVOS del grupo. */
+  monthlyEquivalent: number;
+}
+
+/**
+ * Agrupa por categoría con subtotales, que es como se lee la hoja de cálculo de
+ * la que salen estos datos.
+ *
+ * Los grupos van de mayor a menor subtotal —lo caro primero, que es lo que se
+ * mira— y el de «sin categoría» siempre al final, aunque sume mucho: es un
+ * cajón de sastre, no una categoría de verdad.
+ *
+ * El subtotal solo cuenta los activos, igual que `summarizeFixedExpenses`, para
+ * que la suma de los subtotales cuadre con el total de la cabecera.
+ */
+export function groupFixedExpensesByCategory<
+  T extends FixedExpenseInput & { categoryId: string | null },
+>(
+  expenses: readonly T[],
+  categoryName: (categoryId: string) => string | undefined,
+  sort: FixedExpenseSort,
+): FixedExpenseGroup<T>[] {
+  const grupos = new Map<string, FixedExpenseGroup<T>>();
+
+  for (const gasto of expenses) {
+    // Una categoría borrada deja `categoryId` apuntando a nada; cae al cajón de
+    // sastre en vez de crear un grupo con el rótulo vacío.
+    const nombre = gasto.categoryId === null ? undefined : categoryName(gasto.categoryId);
+    const clave = nombre === undefined ? "" : gasto.categoryId!;
+
+    let grupo = grupos.get(clave);
+    if (!grupo) {
+      grupo = {
+        categoryId: nombre === undefined ? null : gasto.categoryId,
+        categoryName: nombre ?? SIN_CATEGORIA,
+        expenses: [],
+        monthlyEquivalent: 0,
+      };
+      grupos.set(clave, grupo);
+    }
+
+    grupo.expenses.push(gasto);
+    if (gasto.isActive) grupo.monthlyEquivalent += monthlyEquivalent(gasto);
+  }
+
+  for (const grupo of grupos.values()) {
+    grupo.expenses = sortFixedExpenses(grupo.expenses, sort);
+  }
+
+  return [...grupos.values()].sort((a, b) => {
+    if (a.categoryId === null) return 1;
+    if (b.categoryId === null) return -1;
+    return b.monthlyEquivalent - a.monthlyEquivalent;
   });
 }

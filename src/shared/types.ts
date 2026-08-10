@@ -234,6 +234,42 @@ export interface MarkPaidResult {
   nextDueDate: number;
 }
 
+// --- Importación por pegado ------------------------------------------------
+
+/** Una fila de la tabla pegada, ya leída y validada por el cliente. */
+export interface FixedExpenseImportItem {
+  name: string;
+  amount: number;
+  everyMonths: number;
+  /**
+   * Nombre de la categoría, no su id: la hoja de cálculo no conoce ids. El
+   * servidor la busca por nombre y crea la que falte.
+   */
+  categoryName?: string;
+  /**
+   * Vencimiento. Si no viene, el servidor deja el que ya tenía el gasto —y en
+   * uno nuevo, el que mande `defaultNextDueDate`.
+   */
+  nextDueDate?: number;
+}
+
+export interface FixedExpenseImportInput {
+  items: FixedExpenseImportItem[];
+  /** Vencimiento de los gastos NUEVOS que no traen fecha propia. */
+  defaultNextDueDate: number;
+  /** Cuenta o tarjeta de la que salen los gastos NUEVOS. Opcional. */
+  defaultAccountId?: string | null;
+}
+
+export interface FixedExpenseImportResult {
+  /** Gastos que no existían y se han creado. */
+  created: number;
+  /** Gastos que ya existían con ese nombre y se han actualizado. */
+  updated: number;
+  /** Nombres de las categorías que hubo que crear. */
+  createdCategories: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Ajustes
 // ---------------------------------------------------------------------------

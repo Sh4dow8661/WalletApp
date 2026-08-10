@@ -1,4 +1,12 @@
-import { AlertTriangle, CalendarClock, Check, Plus, Repeat, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  Check,
+  ClipboardPaste,
+  Plus,
+  Repeat,
+  Trash2,
+} from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -8,14 +16,17 @@ import {
   DIAS_AVISO,
   daysUntilDue,
   dueStatus,
+  groupFixedExpensesByCategory,
   monthlyEquivalent,
   sortFixedExpenses,
   summarizeFixedExpenses,
+  weeklyEquivalent,
 } from "@/lib/gastos-fijos.ts";
 import { formatMoney, parseAmountInput } from "@/lib/money.ts";
 import type { Account, Category, FixedExpense } from "@/shared/types.ts";
 
 import { CategoryIcon } from "../components/domain.tsx";
+import { ImportarGastosFijosDialog } from "../components/importar-gastos-fijos.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import { SelectField, SwitchField, TextField } from "../components/ui/field.tsx";
@@ -56,12 +67,22 @@ function etiquetaPeriodo(meses: number): string {
   return PERIODOS.find((p) => p.meses === meses)?.etiqueta ?? `Cada ${meses} meses`;
 }
 
+/**
+ * Cómo se ordena o se agrupa la lista.
+ *
+ * «categoria» no es un orden más sino una agrupación con subtotales: es como
+ * está montada la hoja de cálculo de la que salen estos gastos, y es donde el
+ * usuario los lee.
+ */
+type VistaGastos = FixedExpenseSort | "categoria";
+
 export function FixedExpensesScreen() {
   const gastos = useFixedExpenses();
   const cuentas = useAccounts();
   const categorias = useCategories();
   const { year, month, label, currency, timeZone } = useMonth();
-  const [orden, setOrden] = useState<FixedExpenseSort>("vencimiento");
+  const [vista, setVista] = useState<VistaGastos>("vencimiento");
+  const [importando, setImportando] = useState(false);
 
   // Se fija al montar: llamar a Date.now() en cada render es impuro, y los días
   // que faltan para un vencimiento no necesitan refrescarse al segundo.
@@ -69,31 +90,66 @@ export function FixedExpensesScreen() {
 
   const lista = gastos.data ?? [];
   const resumen = summarizeFixedExpenses(lista, year, month, ahora, timeZone);
-  const ordenados = sortFixedExpenses(lista, orden);
+  const listaCategorias = categorias.data ?? [];
+  const nombreDeCategoria = (id: string) =>
+    listaCategorias.find((cat) => cat.id === id)?.name;
+
+  const agrupado = vista === "categoria";
+  // Dentro de cada categoría manda el costo: en una lectura por grupos lo que
+  // se busca es qué pesa más, no qué vence antes.
+  const ordenados = sortFixedExpenses(lista, agrupado ? "costo" : vista);
+  const grupos = agrupado
+    ? groupFixedExpensesByCategory(lista, nombreDeCategoria, "costo")
+    : [];
 
   const contenido = (
     <div>
       <ScreenHeader
         title="Gastos fijos"
         action={
-          <Button asChild size="icon" variant="ghost" aria-label="Nuevo gasto fijo">
-            <Link to="/gastos-fijos/nuevo">
-              <Plus />
-            </Link>
-          </Button>
+          <div className="flex items-center">
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Importar desde el Excel"
+              onClick={() => setImportando(true)}
+            >
+              <ClipboardPaste />
+            </Button>
+            <Button asChild size="icon" variant="ghost" aria-label="Nuevo gasto fijo">
+              <Link to="/gastos-fijos/nuevo">
+                <Plus />
+              </Link>
+            </Button>
+          </div>
         }
+      />
+
+      <ImportarGastosFijosDialog
+        open={importando}
+        onOpenChange={setImportando}
+        gastos={lista}
+        cuentas={cuentas.data ?? []}
+        currency={currency}
+        timeZone={timeZone}
       />
 
       <div className="space-y-4 p-4">
         {gastos.isPending ? (
           <Skeleton className="h-32" />
         ) : lista.length === 0 ? (
-          <Card>
+          <Card className="space-y-4">
             <EmptyState
               icon={Repeat}
               title="Sin gastos fijos"
-              description="Añade los recibos que se repiten para saber cuánto te cuestan al mes."
+              description="Añade los recibos que se repiten para saber cuánto te cuestan al mes, o pega de golpe la tabla de tu Excel."
             />
+            {/* Con la lista vacía, importar es lo primero que se quiere hacer:
+                el botón de la cabecera existe, pero aquí es donde se mira. */}
+            <Button variant="outline" full onClick={() => setImportando(true)}>
+              <ClipboardPaste />
+              Importar desde el Excel
+            </Button>
           </Card>
         ) : (
           <>
@@ -102,10 +158,21 @@ export function FixedExpensesScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs opacity-60">Equivalente al mes</p>
-                  <p className="text-xl font-bold tabular-nums">
+                  <p
+                    className="text-xl font-bold tabular-nums"
+                    data-testid="total-mensual-equivalente"
+                  >
                     {formatMoney(resumen.monthlyEquivalent, currency)}
                   </p>
-                  <p className="text-xs opacity-50">Lo que deberías apartar</p>
+                  <p className="text-xs opacity-50">
+                    Lo que deberías apartar ·{" "}
+                    {/* Semanal = mensual / 4, la convención de la hoja de
+                        cálculo del usuario, NO 4,33. Ver `SEMANAS_POR_MES`. */}
+                    <span data-testid="total-semanal-equivalente">
+                      {formatMoney(weeklyEquivalent(resumen.monthlyEquivalent), currency)}
+                    </span>{" "}
+                    a la semana
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs opacity-60">A pagar en {label.toLowerCase()}</p>
@@ -142,22 +209,23 @@ export function FixedExpensesScreen() {
               )}
             </Card>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs opacity-60">Ordenar por</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs opacity-60">Ver por</span>
               {(
                 [
                   ["vencimiento", "Vencimiento"],
                   ["costo", "Costo mensual"],
+                  ["categoria", "Categoría"],
                 ] as const
               ).map(([valor, texto]) => (
                 <button
                   key={valor}
                   type="button"
-                  onClick={() => setOrden(valor)}
-                  aria-pressed={orden === valor}
+                  onClick={() => setVista(valor)}
+                  aria-pressed={vista === valor}
                   className={cn(
                     "min-h-11 rounded-full border px-3 text-xs font-medium",
-                    orden === valor
+                    vista === valor
                       ? "border-primary bg-primary-light text-primary-dark dark:bg-primary/20 dark:text-primary-light"
                       : "border-black/15 dark:border-white/20",
                   )}
@@ -167,19 +235,54 @@ export function FixedExpensesScreen() {
               ))}
             </div>
 
-            <div className="space-y-2">
-              {ordenados.map((gasto) => (
-                <FilaGastoFijo
-                  key={gasto.id}
-                  gasto={gasto}
-                  cuentas={cuentas.data ?? []}
-                  categorias={categorias.data ?? []}
-                  currency={currency}
-                  timeZone={timeZone}
-                  ahora={ahora}
-                />
-              ))}
-            </div>
+            {agrupado ? (
+              <div className="space-y-5">
+                {grupos.map((grupo) => (
+                  <section
+                    key={grupo.categoryId ?? "sin-categoria"}
+                    data-grupo={grupo.categoryName}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-baseline justify-between gap-2 border-b border-black/8 pb-1 dark:border-white/10">
+                      <h3 className="text-sm font-semibold">{grupo.categoryName}</h3>
+                      <p className="text-sm font-semibold tabular-nums" data-subtotal>
+                        {formatMoney(grupo.monthlyEquivalent, currency)}
+                        <span className="ml-1 text-xs font-normal opacity-50">
+                          al mes
+                        </span>
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {grupo.expenses.map((gasto) => (
+                        <FilaGastoFijo
+                          key={gasto.id}
+                          gasto={gasto}
+                          cuentas={cuentas.data ?? []}
+                          categorias={listaCategorias}
+                          currency={currency}
+                          timeZone={timeZone}
+                          ahora={ahora}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {ordenados.map((gasto) => (
+                  <FilaGastoFijo
+                    key={gasto.id}
+                    gasto={gasto}
+                    cuentas={cuentas.data ?? []}
+                    categorias={listaCategorias}
+                    currency={currency}
+                    timeZone={timeZone}
+                    ahora={ahora}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
