@@ -161,8 +161,28 @@ export interface Budget {
   endDate: number;
   recurrence: BudgetRecurrence;
 
-  /** Gasto neto del período actual: gastos enlazados menos ingresos (§8.4). */
+  /**
+   * Categorías que alimentan el presupuesto (§20). Todo lo gastado en ellas
+   * cuenta solo, sin enlazar nada a mano. Vacío = solo cuenta el enlace manual,
+   * que es como se comportaba antes de la migración 0005.
+   *
+   * Puede contener el id de una categoría ya borrada: ver `staleCategoryIds`.
+   */
+  categoryIds: string[];
+  /**
+   * Las de `categoryIds` que apuntan a una categoría borrada.
+   *
+   * No se limpian solas a propósito: que el presupuesto se quedase mudo sería
+   * justo el "irse a cero en silencio" que hay que evitar. La UI avisa.
+   */
+  staleCategoryIds: string[];
+
+  /** Gasto neto del período actual: gastos menos ingresos, por las dos vías. */
   spent: number;
+  /** Parte de `spent` que entró por categoría. */
+  spentFromCategories: number;
+  /** Parte de `spent` que entró solo por enlace manual. Suman `spent`. */
+  spentFromManual: number;
   periodStart: number;
   periodEnd: number;
 
@@ -190,6 +210,11 @@ export interface BudgetInput {
   startDate: number;
   endDate: number;
   recurrence: BudgetRecurrence;
+  /**
+   * Categorías cuyo gasto cuenta solo. Omitirlo deja las que ya hubiera; una
+   * lista vacía las quita todas.
+   */
+  categoryIds?: string[];
 }
 
 // ---------------------------------------------------------------------------

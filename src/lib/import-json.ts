@@ -114,8 +114,18 @@ export interface ExportAndroid {
   transacciones: Json[];
   presupuestos: Json[];
   enlaces: Json[];
+  /**
+   * Categorías que alimentan cada presupuesto (§20).
+   *
+   * **Opcional a propósito.** Ni la app Android ni los respaldos anteriores a
+   * la migración 0005 la traen, y un archivo sin ella tiene que importar igual:
+   * lo que se pierde es solo el automatismo, y los presupuestos quedan como
+   * estaban, contando lo enlazado a mano.
+   */
+  presupuestoCategorias: Json[];
 }
 
+/** Secciones **obligatorias**: si falta una, el archivo no vale. */
 const SECCIONES = [
   "cuentas",
   "categorias",
@@ -123,6 +133,9 @@ const SECCIONES = [
   "presupuestos",
   "enlaces",
 ] as const;
+
+/** Nombre de la sección opcional de la 0005. Ver `ExportAndroid`. */
+const SECCION_CATEGORIAS_PRESUPUESTO = "presupuestoCategorias";
 
 /** Comprueba que el archivo es lo que dice ser, antes de tocar nada. */
 export function parseExportAndroid(contenido: string): ExportAndroid {
@@ -154,12 +167,17 @@ export function parseExportAndroid(contenido: string): ExportAndroid {
     }
   }
 
+  const opcional = datos[SECCION_CATEGORIAS_PRESUPUESTO];
+
   return {
     formato: "walletapp-export",
     version: 1,
     exportadoEn: numero(datos, "exportadoEn"),
     zonaHoraria: typeof datos.zonaHoraria === "string" ? datos.zonaHoraria : undefined,
     moneda: typeof datos.moneda === "string" ? datos.moneda : undefined,
+    // Ausente o con basura dentro: lista vacía. No se rechaza el archivo por
+    // una sección que los respaldos viejos ni siquiera tenían.
+    presupuestoCategorias: Array.isArray(opcional) ? opcional.filter(esObjeto) : [],
     // Las entradas que no sean objetos se tiran ya: no hay nada que rescatar.
     ...(Object.fromEntries(
       SECCIONES.map((clave) => [clave, (datos[clave] as unknown[]).filter(esObjeto)]),
@@ -216,6 +234,7 @@ export interface DatosImportados {
     recurrence: BudgetRecurrence;
   }[];
   enlaces: { transactionId: string; budgetId: string }[];
+  presupuestoCategorias: { budgetId: string; categoryId: string }[];
   resumen: ResumenImportacion;
 }
 
@@ -225,6 +244,8 @@ export interface ResumenImportacion {
   transacciones: number;
   presupuestos: number;
   enlaces: number;
+  /** Vínculos presupuesto↔categoría restaurados (§20). */
+  presupuestoCategorias: number;
   /** Transferencias con sus dos patas correctamente emparejadas. */
   transferenciasEmparejadas: number;
   /**
@@ -441,6 +462,27 @@ export function transformarExport(
         "que no están en el archivo.",
     );
   }
+
+  // --- Categorías de cada presupuesto (§20) ------------------------------
+  //
+  // Sección opcional: los respaldos anteriores a la 0005 y los de la app
+  // Android no la traen, y entonces esto queda vacío sin más.
+  const presupuestoCategorias = datos.presupuestoCategorias.flatMap((fila) => {
+    const budget = idOriginal(fila, "budgetId");
+    const categoria = idOriginal(fila, "categoryId");
+    if (budget === null || categoria === null) return [];
+
+    const budgetId = idPresupuesto.get(budget);
+    const categoryId = idCategoria.get(categoria);
+    return budgetId && categoryId ? [{ budgetId, categoryId }] : [];
+  });
+
+  if (presupuestoCategorias.length !== datos.presupuestoCategorias.length) {
+    avisos.push(
+      `${datos.presupuestoCategorias.length - presupuestoCategorias.length} categoría(s) de ` +
+        "presupuesto apuntaban a filas que no están en el archivo.",
+    );
+  }
   if (descartadas > 0) {
     avisos.push(
       `${descartadas} fila(s) del archivo estaban incompletas y se han saltado.`,
@@ -453,12 +495,14 @@ export function transformarExport(
     transacciones,
     presupuestos,
     enlaces,
+    presupuestoCategorias,
     resumen: {
       cuentas: cuentas.length,
       categorias: categorias.length,
       transacciones: transacciones.length,
       presupuestos: presupuestos.length,
       enlaces: enlaces.length,
+      presupuestoCategorias: presupuestoCategorias.length,
       transferenciasEmparejadas: emparejadas,
       transferenciasHuerfanas: Math.max(huerfanas, 0),
       avisos,

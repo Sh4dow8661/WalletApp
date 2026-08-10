@@ -85,8 +85,17 @@ Al crear, el campo es el balance inicial tal cual. Portable literalmente.
 `TransactionBudgetDao.observeSpentForBudgetInRange` (`TransactionBudgetDao.kt:26-41`):
 `EXPENSE` suma, `INCOME` resta, filtrado por `date BETWEEN from AND to`.
 Sin matching automático por categoría/cuenta (eliminado en `MIGRATION_4_5`).
-Los derivados de la UI están en `Budget.kt:33-82` y coinciden con §8.4, con dos precisiones
-que conviene fijar en los tests:
+
+> **Esto dejó de ser cierto en la migración 0005.** El matching automático **por
+> categoría** volvió, conviviendo con el enlace manual en vez de sustituirlo, y
+> el gasto pasó a ser la unión de las dos vías. Por cuenta sigue sin haberlo.
+> Los detalles y el porqué, en [§20](#20-presupuestos-que-cuentan-solos-por-categoría).
+>
+> El comentario de `migrations/0001_esquema_inicial.sql` sigue diciendo lo de
+> arriba a propósito: una migración es un registro de lo que era verdad cuando
+> se escribió y no se reescribe. Quien la lea encontrará la 0005 al lado.
+> Los derivados de la UI están en `Budget.kt:33-82` y coinciden con §8.4, con dos precisiones
+> que conviene fijar en los tests:
 
 - `daysRemaining` = `floor((periodEnd − now)/día) + 1`, y **0** si `now > periodEnd`.
 - `daysElapsed` = `(periodDurationDays − daysRemaining)` acotado a **mínimo 1** — no es
@@ -1234,6 +1243,110 @@ diálogo las pide una sola vez y las aplica a los gastos nuevos (la fecha por
 defecto es hoy, la cuenta puede quedar sin asignar), y se afinan después desde
 cada gasto. Importa sobre todo en los que no son mensuales: Google AI Plus,
 Marbete, Planet Fitness, Costco Gold Star, Creatina y Perfume.
+
+## 20. Presupuestos que cuentan solos por categoría
+
+Hasta la migración 0005 un presupuesto solo sumaba lo que se enlazaba **a mano**,
+movimiento a movimiento. Eso obliga a acordarse de enlazar cada gasto, y un
+presupuesto de "Gasolina" del que se olvida un repostaje miente — que es la peor
+forma de fallar en una app de dinero, porque el número sigue ahí, con aspecto de
+correcto.
+
+Ahora un presupuesto puede tener **categorías**, y todo lo gastado en ellas
+dentro del período cuenta solo.
+
+### Vuelve algo que se había quitado
+
+El matching automático por categoría existía en la app Android y se eliminó en
+`MIGRATION_4_5`. Volver sobre una decisión así pide justificarla, y hay dos
+diferencias deliberadas con cómo era entonces:
+
+|                    | Android (antes de `MIGRATION_4_5`) | Ahora (0005)                  |
+| ------------------ | ---------------------------------- | ----------------------------- |
+| Vías de imputación | Solo la categoría                  | Categoría **y** enlace manual |
+| Cuántas categorías | Una                                | Varias (tabla de unión)       |
+| Cuenta también     | Por cuenta                         | No, solo por categoría        |
+
+La primera es la importante. Aquel matching **sustituía** al enlace manual, así
+que no había forma de imputar un gasto suelto que no fuera de la categoría. Aquí
+lo que cuenta es la **unión** de las dos vías, y un movimiento que esté en las
+dos **cuenta una sola vez**. Nadie pierde lo que ya tenía enlazado.
+
+Por cuenta no se ha repuesto: nadie lo pidió y multiplicaría los casos a probar.
+
+### Las reglas del cálculo
+
+Viven en `src/lib/budget-spend.ts`, aparte del Worker y sin tocar la base, que
+es lo que permite probarlas una a una:
+
+- **El signo no cambia** respecto a §8.4: el gasto suma y el ingreso resta. Una
+  devolución en una categoría del presupuesto le devuelve saldo.
+- **Las transferencias no cuentan nunca**, ni la pata que sale ni la que entra,
+  tengan la categoría que tengan. Mover dinero entre cuentas propias no es
+  gastar, y contarlo lo inflaría por las dos puntas. En la práctica una
+  transferencia no lleva categoría (§8.2), pero se filtra por tipo para que la
+  regla no dependa de ese detalle.
+- **Lo borrado no cuenta**, aunque la consulta se olvidara de filtrarlo.
+
+### Es retroactivo, y gratis
+
+El gasto se calcula **al leer**, no se guarda. Así que asignar una categoría a un
+presupuesto que ya existía hace que lo ya registrado en esa categoría cuente de
+inmediato: no hay backfill, ni un momento en que la cifra esté a medias.
+
+La contrapartida es que cada lectura cruza movimientos. Para que eso no crezca
+sin control, la consulta se acota **al rango de fechas que abarcan los períodos
+vigentes** en vez de traer todo el historial, y el reparto por presupuesto lo
+hace el propio JOIN contra `budget_categories`.
+
+### Qué pasa al borrar una categoría que alimenta un presupuesto
+
+Es el caso incómodo, porque el borrado de una categoría **deja sin categoría a
+sus transacciones** (`routes/categories.ts`). O sea que el presupuesto no se
+rompe: simplemente deja de ver esos gastos y su cifra baja.
+
+Bajar en silencio era justo lo que no se quería, así que:
+
+1. **El vínculo no se borra.** El presupuesto conserva el id de la categoría
+   muerta y el API lo devuelve aparte, en `staleCategoryIds`.
+2. **La pantalla de presupuestos avisa** de que una categoría ya no existe y de
+   que lo que se gastaba en ella ha dejado de contar.
+3. **El aviso se da antes**, en el diálogo de borrar la categoría, diciendo qué
+   presupuestos se van a quedar sin ella. Es el momento en que aún se puede
+   echar atrás.
+
+Lo que estuviera además enlazado a mano sobrevive: esa vía no depende de la
+categoría.
+
+### No se puede excluir a mano un movimiento que entró por categoría
+
+Se valoró y se decidió que **no**, y la pantalla lo dice en vez de ofrecer un
+botón que no hace nada.
+
+Hacerlo pedía una tercera lista —excepciones— que habría que consultar en cada
+cálculo, exportar, importar y mantener coherente cuando el movimiento cambia de
+categoría. Y hay dos salidas que ya cubren el caso: cambiarle la categoría al
+movimiento, o quitar esa categoría del presupuesto. Para una app personal, tres
+mecanismos de imputación conviviendo cuestan más de lo que resuelven.
+
+### La tabla
+
+`budget_categories` sigue el patrón de `transaction_budget_ref`, que es la tabla
+de unión que ya había: clave primaria compuesta y nada más. Sin `id`, sin
+`user_id`, sin timestamps y sin `deleted_at`, a diferencia de las tablas del
+dominio — no es una entidad con vida propia sino una relación entre dos que sí
+la tienen, y el aislamiento por usuario lo dan las dos puntas.
+
+Las lecturas se atan al usuario por `categories.user_id`, y al guardar se
+comprueba que **cada categoría es del usuario de la sesión** antes de escribir
+nada: los identificadores llegan del cliente y que existan no basta.
+
+### Copia de seguridad
+
+El export lleva una sección nueva, `presupuestoCategorias`, y el import la
+restaura. **Es opcional al leer**: ni la app Android ni un respaldo anterior a
+la 0005 la traen, y un archivo sin ella sigue importando — lo que se pierde es
+el automatismo, no el presupuesto, que queda contando lo enlazado a mano.
 
 ## 12. Fase 7 — migración de los datos reales
 

@@ -158,11 +158,16 @@ export const budgets = sqliteTable(
 );
 
 /**
- * Enlace manual N:M entre transacción y presupuesto.
+ * Enlace **manual** N:M entre transacción y presupuesto.
  *
- * No hay matching automático por categoría ni por cuenta: eso se eliminó en la
- * migración 4→5 de Room. Cada transacción se enlaza a mano a 0, 1 o varios
- * presupuestos (§8.4).
+ * Es una de las dos vías por las que un movimiento cuenta en un presupuesto; la
+ * otra es la categoría (`budgetCategories`, migración 0005). Lo que cuenta es
+ * la unión de ambas, y un movimiento que esté en las dos cuenta una sola vez
+ * (§20).
+ *
+ * Esta vía sirve para el gasto suelto que NO es de las categorías del
+ * presupuesto pero que se quiere imputar igualmente. Por eso no desapareció al
+ * volver el matching automático.
  */
 export const transactionBudgetRef = sqliteTable(
   "transaction_budget_ref",
@@ -173,6 +178,30 @@ export const transactionBudgetRef = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.transactionId, t.budgetId] }),
     index("idx_tbr_budget").on(t.budgetId),
+  ],
+);
+
+/**
+ * Categorías que alimentan un presupuesto (migración 0005).
+ *
+ * Todo lo gastado en estas categorías dentro del período cuenta solo, sin
+ * enlazar nada a mano. Es el matching automático que la app Android tenía y
+ * perdió en MIGRATION_4_5, con dos diferencias: convive con el enlace manual en
+ * vez de sustituirlo, y admite varias categorías por presupuesto (§20).
+ *
+ * Sin `deleted_at` a propósito: es una tabla de unión, como
+ * `transactionBudgetRef`. Quitar una categoría de un presupuesto borra la fila.
+ */
+export const budgetCategories = sqliteTable(
+  "budget_categories",
+  {
+    budgetId: text("budget_id").notNull(),
+    categoryId: text("category_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.budgetId, t.categoryId] }),
+    index("idx_budget_categories_budget").on(t.budgetId),
+    index("idx_budget_categories_category").on(t.categoryId),
   ],
 );
 

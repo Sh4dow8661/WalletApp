@@ -28,6 +28,7 @@ import type { AppEnv } from "../context.ts";
 import { type Statement, runBatch } from "../db/batch.ts";
 import type { Db } from "../db/client.ts";
 import {
+  budgetCategories,
   budgets,
   categories,
   transactionBudgetRef,
@@ -88,7 +89,9 @@ function lotes<T extends object>(filas: readonly T[]): T[][] {
  */
 function sentenciasDeBorrado(db: Db, userId: string): Statement[] {
   return [
-    // Los enlaces primero: cuelgan de transacciones y presupuestos.
+    // Las tablas de unión primero: cuelgan de transacciones, presupuestos y
+    // categorías, y se borran explícitamente en vez de fiarlo al ON DELETE
+    // CASCADE (§R5).
     db
       .delete(transactionBudgetRef)
       .where(
@@ -98,6 +101,14 @@ function sentenciasDeBorrado(db: Db, userId: string): Statement[] {
             .select({ id: transactions.id })
             .from(transactions)
             .where(eq(transactions.userId, userId)),
+        ),
+      ),
+    db
+      .delete(budgetCategories)
+      .where(
+        inArray(
+          budgetCategories.budgetId,
+          db.select({ id: budgets.id }).from(budgets).where(eq(budgets.userId, userId)),
         ),
       ),
     db.delete(transactions).where(eq(transactions.userId, userId)),
@@ -134,6 +145,9 @@ function sentenciasDeInsercion(
   }
   for (const lote of lotes(datos.enlaces)) {
     statements.push(db.insert(transactionBudgetRef).values(lote).onConflictDoNothing());
+  }
+  for (const lote of lotes(datos.presupuestoCategorias)) {
+    statements.push(db.insert(budgetCategories).values(lote).onConflictDoNothing());
   }
 
   return statements;
@@ -315,12 +329,22 @@ export function transformarCsv(rows: readonly CsvRow[], ahora: number): DatosImp
     transacciones: transacciones.length,
     presupuestos: 0,
     enlaces: 0,
+    // El CSV no trae presupuestos, así que tampoco sus categorías.
+    presupuestoCategorias: 0,
     transferenciasEmparejadas: pairs.length,
     transferenciasHuerfanas: orphans.length,
     avisos,
   };
 
-  return { cuentas, categorias, transacciones, presupuestos: [], enlaces: [], resumen };
+  return {
+    cuentas,
+    categorias,
+    transacciones,
+    presupuestos: [],
+    enlaces: [],
+    presupuestoCategorias: [],
+    resumen,
+  };
 }
 
 /**
@@ -357,14 +381,26 @@ app.get("/json", async (c) => {
   // Los enlaces se filtran por usuario con un JOIN y no por la lista de
   // transacciones: D1 solo admite 100 variables por sentencia, y aquí las
   // transacciones son justamente todas las del usuario.
-  const enlaces = await db
-    .select({
-      transactionId: transactionBudgetRef.transactionId,
-      budgetId: transactionBudgetRef.budgetId,
-    })
-    .from(transactionBudgetRef)
-    .innerJoin(transactions, eq(transactions.id, transactionBudgetRef.transactionId))
-    .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)));
+  const [enlaces, categoriasDePresupuesto] = await Promise.all([
+    db
+      .select({
+        transactionId: transactionBudgetRef.transactionId,
+        budgetId: transactionBudgetRef.budgetId,
+      })
+      .from(transactionBudgetRef)
+      .innerJoin(transactions, eq(transactions.id, transactionBudgetRef.transactionId))
+      .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt))),
+
+    // Igual, pero atado al usuario por la categoría (§20).
+    db
+      .select({
+        budgetId: budgetCategories.budgetId,
+        categoryId: budgetCategories.categoryId,
+      })
+      .from(budgetCategories)
+      .innerJoin(categories, eq(categories.id, budgetCategories.categoryId))
+      .where(and(eq(categories.userId, userId), isNull(categories.deletedAt))),
+  ]);
 
   const numeroDe = new Map<string, number>();
   const numerar = (id: string): number => {
@@ -431,6 +467,14 @@ app.get("/json", async (c) => {
       .map((e) => ({
         transactionId: numerar(e.transactionId),
         budgetId: numerar(e.budgetId),
+      })),
+    // Sección de la 0005. Va al final y es opcional al leer, para que un
+    // respaldo hecho con esta versión siga abriéndose en una anterior (§20).
+    presupuestoCategorias: categoriasDePresupuesto
+      .filter((r) => numeroDe.has(r.budgetId) && numeroDe.has(r.categoryId))
+      .map((r) => ({
+        budgetId: numerar(r.budgetId),
+        categoryId: numerar(r.categoryId),
       })),
   };
 

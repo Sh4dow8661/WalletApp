@@ -13,7 +13,12 @@ import { Button } from "../components/ui/button.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import { ColorPicker, SelectField, TextField } from "../components/ui/field.tsx";
 import { ConfirmDialog } from "../components/ui/responsive-dialog.tsx";
-import { useCategories, useDeleteCategory, useSaveCategory } from "../hooks/api.ts";
+import {
+  useBudgets,
+  useCategories,
+  useDeleteCategory,
+  useSaveCategory,
+} from "../hooks/api.ts";
 import { useIdNuevo } from "../hooks/use-id-nuevo.ts";
 import { ScreenHeader } from "../layouts/MobileLayout.tsx";
 import { MasterDetail } from "../layouts/MasterDetail.tsx";
@@ -168,6 +173,13 @@ function CategoryForm({
   const guardar = useSaveCategory();
   const borrar = useDeleteCategory();
 
+  // Qué presupuestos se alimentan de esta categoría. Hace falta para avisar
+  // antes de borrarla: si no, dejarían de contar sus gastos en silencio (§20).
+  const presupuestos = useBudgets();
+  const presupuestosAfectados = (presupuestos.data ?? []).filter(
+    (b) => id !== undefined && b.categoryIds.includes(id),
+  );
+
   const [name, setName] = useState(inicial.name);
   const [type, setType] = useState<CategoryType>(inicial.type);
   const [colorHex, setColorHex] = useState<string>(inicial.colorHex);
@@ -271,7 +283,20 @@ function CategoryForm({
         open={confirmarBorrado}
         onOpenChange={setConfirmarBorrado}
         title="¿Eliminar la categoría?"
-        description="Las transacciones que la usaban NO se borran: se quedan sin categoría y siguen contando en los totales."
+        description={
+          // El aviso concreto va delante: que un presupuesto deje de contar sus
+          // gastos es la consecuencia menos evidente y la más cara de descubrir
+          // tarde (§20, punto 7).
+          presupuestosAfectados.length > 0
+            ? `${
+                presupuestosAfectados.length === 1
+                  ? `El presupuesto "${presupuestosAfectados[0]!.name}" cuenta`
+                  : `${presupuestosAfectados.length} presupuestos cuentan`
+              } esta categoría automáticamente y dejará${
+                presupuestosAfectados.length === 1 ? "" : "n"
+              } de hacerlo. Las transacciones NO se borran: se quedan sin categoría y siguen contando en los totales.`
+            : "Las transacciones que la usaban NO se borran: se quedan sin categoría y siguen contando en los totales."
+        }
         onConfirm={() => {
           if (!id) return;
           borrar.mutate(id, { onSuccess: () => void navigate("/categorias") });
