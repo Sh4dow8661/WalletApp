@@ -1145,7 +1145,7 @@ Lo que queda pendiente son los **números** (Performance ≥ 90, Accessibility �
 Se pueden sacar en un clic desde Chrome → DevTools → Lighthouse contra
 `pnpm preview`, y conviene hacerlo antes de dar por buena la Fase 8.
 
-## 18. Importar los gastos fijos del Excel
+## 19. Importar los gastos fijos del Excel
 
 El usuario lleva sus gastos fijos en una hoja de cálculo y quiere **seguir
 llevándolos ahí**. Por eso lo que se añadió no es un script de carga de una sola
