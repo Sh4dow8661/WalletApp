@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { type ComponentProps, useId } from "react";
 
 import { cn } from "../../lib/cn.ts";
@@ -105,18 +106,32 @@ export function SelectField({
   return (
     <Field label={label} error={error} hint={hint}>
       {(id) => (
-        <select
-          id={id}
-          className={cn(
-            estiloControl,
-            "appearance-none pr-8",
-            error && "border-expense",
-            className,
-          )}
-          {...props}
-        >
-          {children}
-        </select>
+        // `appearance-none` quita la flecha nativa, así que la ponemos nosotros:
+        // sin ella el campo no se distinguía de un input de texto.
+        <div className="relative">
+          <select
+            id={id}
+            className={cn(
+              estiloControl,
+              "appearance-none pr-10",
+              // El fondo tiene que ser OPACO: en tema oscuro el desplegable que
+              // pinta el sistema hereda este color, y con alfa las opciones se
+              // volvían ilegibles. El valor es `bg-white/5` ya compuesto sobre
+              // --color-surface-dark, para que iguale al resto de campos.
+              "dark:bg-[#1e1e1e]",
+              error && "border-expense",
+              className,
+            )}
+            aria-invalid={error ? true : undefined}
+            {...props}
+          >
+            {children}
+          </select>
+          <ChevronDown
+            aria-hidden
+            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 opacity-60"
+          />
+        </div>
       )}
     </Field>
   );

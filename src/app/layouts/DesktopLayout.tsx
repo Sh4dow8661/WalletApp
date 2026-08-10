@@ -159,43 +159,67 @@ export function DesktopLayout() {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {esEscritorio && (
-          <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-black/8 bg-surface-light/95 px-6 py-3 backdrop-blur dark:border-white/10 dark:bg-neutral-900/95">
-            <div className="min-w-0">
-              <p className="text-xs opacity-60">Balance total</p>
-              <p className="text-xl font-bold tabular-nums">
-                {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
-              </p>
-            </div>
+        {/*
+          La cabecera va SIEMPRE, también en tablet. Antes colgaba de
+          `esEscritorio` y el resultado era que entre 768 y 1279 px no quedaba
+          ningún botón para crear una transacción: solo el atajo `n`. Y ese
+          tramo es fácil de pisar sin ser una tablet — un monitor de 1920 con el
+          escalado de Windows al 150 % da 1280 px de viewport, menos la barra de
+          scroll. En tablet solo se compacta: el botón se queda en el icono.
+        */}
+        <header
+          className={cn(
+            "sticky top-0 z-20 flex items-center gap-4 border-b border-black/8 py-3 backdrop-blur",
+            "bg-surface-light/95 dark:border-white/10 dark:bg-neutral-900/95",
+            esEscritorio ? "px-6" : "px-4",
+          )}
+        >
+          <div className="min-w-0">
+            <p className="text-xs opacity-60">Balance total</p>
+            <p className="text-xl font-bold tabular-nums">
+              {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
+            </p>
+          </div>
 
-            {/* Selector de mes siempre visible, como pide §10. */}
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
-                onClick={previous}
-                aria-label="Mes anterior"
-                className="grid size-9 place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                ‹
-              </button>
-              <span className="min-w-36 text-center text-sm font-medium">{label}</span>
-              <button
-                type="button"
-                onClick={next}
-                aria-label="Mes siguiente"
-                className="grid size-9 place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                ›
-              </button>
-            </div>
+          {/* Selector de mes siempre visible, como pide §10. */}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={previous}
+              aria-label="Mes anterior"
+              className="grid size-9 place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              ‹
+            </button>
+            <span
+              className={cn(
+                "text-center text-sm font-medium",
+                esEscritorio ? "min-w-36" : "min-w-28",
+              )}
+            >
+              {label}
+            </span>
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Mes siguiente"
+              className="grid size-9 place-items-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              ›
+            </button>
+          </div>
 
-            {/* Sin FAB en escritorio: la acción va en la cabecera (§10). */}
-            <Button onClick={() => void navigate("/transacciones/nueva")}>
-              <Plus />
-              Nueva transacción
-            </Button>
-          </header>
-        )}
+          {/* Sin FAB en escritorio: la acción va en la cabecera (§10). */}
+          <Button
+            onClick={() => void navigate("/transacciones/nueva")}
+            size={esEscritorio ? "md" : "icon"}
+            aria-label="Nueva transacción"
+            title="Nueva transacción"
+          >
+            <Plus />
+            {esEscritorio && "Nueva transacción"}
+          </Button>
+        </header>
 
         <main className="mx-auto w-full max-w-[1600px] flex-1">
           <Outlet />

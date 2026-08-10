@@ -48,10 +48,25 @@
   html {
     background-color: var(--color-surface-light);
     color: var(--color-on-surface-light);
+    /* Sin `color-scheme` el navegador pinta TODO lo nativo (el desplegable del
+       <select>, el calendario de <input type="date">, las barras de scroll) con
+       su paleta clara. Como el texto sí heredaba el color claro del tema oscuro,
+       las opciones salían casi blancas sobre fondo blanco: ilegibles. */
+    color-scheme: light;
   }
 
   html.dark {
     background-color: var(--color-surface-dark);
+    color: var(--color-on-surface-dark);
+    color-scheme: dark;
+  }
+
+  /* El popup de opciones lo dibuja el sistema y hereda el fondo del <select>.
+     Un color con alfa (`bg-white/5`) se compone contra blanco y vuelve a dejarlo
+     ilegible, así que aquí van opacos y explícitos. */
+  html.dark select option,
+  html.dark select optgroup {
+    background-color: #262626;
     color: var(--color-on-surface-dark);
   }
 
