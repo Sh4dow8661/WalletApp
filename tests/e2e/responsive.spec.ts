@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { fijarTema } from "./sembrar.ts";
+
 /**
  * Verificación de §10: la misma app en los cinco tamaños de referencia.
  *
@@ -136,10 +138,15 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
    */
   test("en tema oscuro las opciones de un desplegable se leen", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
-    await page.evaluate(() => localStorage.setItem("walletapp:theme", "DARK"));
+
+    // El tema se fija en el SERVIDOR, no en localStorage: `SincronizarTema`
+    // pisa lo local en cuanto llegan los ajustes del usuario. Con el valor por
+    // defecto (SYSTEM) un runner headless resuelve a claro y esto fallaría —
+    // que es justo lo que pasó en el CI.
+    await fijarTema(page, "DARK");
+
     await page.goto("/transacciones/nueva");
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html.dark")).toBeAttached();
 
     const estilos = await page.evaluate(() => {
       const opcion = document.querySelector("select option");
@@ -157,6 +164,10 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
     // Opaco: nada de rgba(...) con alfa, que es lo que rompía el popup.
     expect(estilos!.fondo).not.toContain("rgba");
     expect(estilos!.fondo).not.toBe(estilos!.texto);
+
+    // El tema queda guardado en el servidor, así que se devuelve a claro para
+    // no arrastrar el modo oscuro a los tests que vengan detrás.
+    await fijarTema(page, "LIGHT");
   });
 
   test("en escritorio la lista y el detalle se ven a la vez", async ({ page }) => {
