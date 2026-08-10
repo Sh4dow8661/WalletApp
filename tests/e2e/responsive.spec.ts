@@ -157,6 +157,64 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
   });
 
   /**
+   * Regresión: al añadir el scroll vertical a la barra lateral aparecieron dos
+   * problemas nuevos —una barra de scroll HORIZONTAL con sus flechas, y los
+   * rótulos recortados— que el test anterior no cazó porque solo miraba el eje
+   * vertical.
+   *
+   * Ojo con lo que este test NO puede ver: en un Chromium headless las barras
+   * de scroll son overlay y no roban ancho, mientras que las clásicas de
+   * Windows se llevan unos 15 px. Por eso `scroll-sin-barra` hace falta aunque
+   * aquí el ancho robado salga siempre 0.
+   */
+  test("la barra lateral no recorta los rótulos ni scrollea en horizontal", async ({
+    page,
+  }) => {
+    for (const [width, height] of [
+      [1280, 720],
+      [1280, 560],
+      [900, 560],
+      [900, 420],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      const medida = await page.evaluate(() => {
+        const nav = document.querySelector("nav[aria-label='Navegación principal']")!;
+        const lista = nav.querySelector("[data-menu-secciones]")!;
+        const cajaLista = lista.getBoundingClientRect();
+
+        const recortados: string[] = [];
+        for (const enlace of nav.querySelectorAll("a")) {
+          const span = enlace.querySelector("span");
+          if (!span) continue;
+          const caja = span.getBoundingClientRect();
+          // Fuera del área visible por cualquiera de los dos lados...
+          if (caja.left < cajaLista.left - 0.5 || caja.right > cajaLista.right + 0.5) {
+            recortados.push(span.textContent!.trim());
+          }
+          // ...o con el texto cortado con puntos suspensivos.
+          if (span.scrollWidth > span.clientWidth + 1) {
+            recortados.push(`${span.textContent!.trim()} (truncado)`);
+          }
+        }
+
+        return {
+          hayScrollHorizontal: lista.scrollWidth > lista.clientWidth + 1,
+          overflowX: getComputedStyle(lista).overflowX,
+          recortados,
+        };
+      });
+
+      const donde = `${width}x${height}`;
+      expect(medida.hayScrollHorizontal, `${donde}: hay scroll horizontal`).toBe(false);
+      expect(medida.overflowX, `${donde}: el eje X debe estar cerrado`).toBe("hidden");
+      expect(medida.recortados, `${donde}: rótulos recortados`).toEqual([]);
+    }
+  });
+
+  /**
    * Regresión: el círculo del switch se salía de su pista. Iba con
    * `translate-x-5.5` y sin `left`, así que su posición dependía de dónde lo
    * dejara el flujo estático — medido, sobresalía 20 px por la derecha estando
