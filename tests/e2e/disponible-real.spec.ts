@@ -106,13 +106,21 @@ test("la cabecera, el Dashboard y Cuentas dicen la misma cifra", async ({ page }
   await page.goto("/");
   await page.waitForLoadState("networkidle");
 
-  // En el Dashboard hay dos: la de la cabecera y la de la tarjeta verde.
-  const enInicio = await page.getByText("Disponible real").count();
-  expect(enInicio, "el Dashboard debería enseñarlo").toBeGreaterThan(0);
+  // `toBeVisible` y no `count()`: `count()` es una foto instantánea que NO
+  // reintenta, así que se resolvía antes de que React pintase la cabecera y el
+  // test salía rojo en CI de vez en cuando (pasó en el runner y no en local,
+  // que es la firma de este fallo). Las aserciones de `expect(locator)` sí
+  // reintentan hasta el timeout.
+  const disponible = page.locator(
+    "xpath=//p[normalize-space()='Disponible real']/following-sibling::p[1]",
+  );
+  await expect(
+    disponible.first(),
+    "el Dashboard debería enseñar el disponible real",
+  ).toBeVisible();
 
-  const cifras = await page
-    .locator("xpath=//p[normalize-space()='Disponible real']/following-sibling::p[1]")
-    .allInnerTexts();
+  // En el Dashboard hay dos: la de la cabecera y la de la tarjeta verde.
+  const cifras = await disponible.allInnerTexts();
 
   // Todas las apariciones de la misma pantalla coinciden entre sí.
   expect(new Set(cifras).size, `cifras distintas en Inicio: ${cifras.join(" | ")}`).toBe(
@@ -140,6 +148,9 @@ test("el desglose cuadra: activos − colchones − deuda", async ({ page }) => 
 
   const numero = (texto: string) => Number(texto.replace(/[^\d.-]/g, ""));
 
+  // Espera a que el desglose esté pintado antes de leerlo: `allInnerTexts` no
+  // reintenta, igual que `count()`.
+  await expect(page.locator("dl").first()).toBeVisible();
   const filas = await page.locator("dl >> div").allInnerTexts();
   const valores = new Map<string, number>();
   for (const fila of filas) {
@@ -203,6 +214,9 @@ test("ninguna cifra de dinero del resumen se recorta", async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto("/cuentas");
     await page.waitForLoadState("networkidle");
+    // Igual que arriba: `evaluate` no reintenta, así que primero hay que estar
+    // seguro de que el resumen está pintado.
+    await expect(page.getByText("Neto", { exact: true }).first()).toBeVisible();
 
     const recortadas = await page.evaluate(() => {
       const malas: string[] = [];
