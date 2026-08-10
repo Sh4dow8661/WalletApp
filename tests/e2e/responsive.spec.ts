@@ -104,6 +104,61 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
     );
   });
 
+  /**
+   * Regresión: entre 768 y 1279 px la cabecera colgaba de `esEscritorio`, así
+   * que no quedaba ningún botón para crear una transacción — solo el atajo `n`.
+   * Y ese tramo se pisa sin ser una tablet: un monitor de 1920 con el escalado
+   * de Windows al 150 % da 1280 px de viewport, menos la barra de scroll.
+   */
+  test("siempre hay un botón para crear una transacción", async ({ page }) => {
+    for (const width of [360, 768, 1024, 1265, 1280, 1920]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      const boton = page.getByRole("button", { name: "Nueva transacción" });
+      await expect(boton, `sin botón de alta a ${width}px`).toBeVisible();
+
+      await boton.click();
+      await expect(
+        page.getByRole("heading", { name: "Nueva transacción" }),
+        `el botón no abre el alta a ${width}px`,
+      ).toBeVisible();
+    }
+  });
+
+  /**
+   * Regresión: sin `color-scheme` el navegador pintaba el desplegable nativo con
+   * su paleta clara mientras el texto heredaba el color claro del tema oscuro,
+   * y las opciones salían blancas sobre blanco. El fondo tiene que ser opaco:
+   * el popup lo hereda del <select> y un color con alfa se compone contra
+   * blanco.
+   */
+  test("en tema oscuro las opciones de un desplegable se leen", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("walletapp:theme", "DARK"));
+    await page.goto("/transacciones/nueva");
+    await page.waitForLoadState("networkidle");
+
+    const estilos = await page.evaluate(() => {
+      const opcion = document.querySelector("select option");
+      if (!opcion) return null;
+      const cs = getComputedStyle(opcion);
+      return {
+        colorScheme: getComputedStyle(document.documentElement).colorScheme,
+        fondo: cs.backgroundColor,
+        texto: cs.color,
+      };
+    });
+
+    expect(estilos, "no se encontró ningún <option>").not.toBeNull();
+    expect(estilos!.colorScheme).toBe("dark");
+    // Opaco: nada de rgba(...) con alfa, que es lo que rompía el popup.
+    expect(estilos!.fondo).not.toContain("rgba");
+    expect(estilos!.fondo).not.toBe(estilos!.texto);
+  });
+
   test("en escritorio la lista y el detalle se ven a la vez", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/transacciones");
