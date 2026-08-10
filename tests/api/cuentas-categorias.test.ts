@@ -45,6 +45,235 @@ beforeEach(async () => {
   salario = cats.find((c) => c.name === "Salario")!;
 });
 
+describe("límite de crédito de las tarjetas", () => {
+  const nuevaCuenta = (extra: Record<string, unknown>) => ({
+    name: "Prueba",
+    type: "CASH",
+    balance: 0,
+    colorHex: "#4CAF50",
+    iconName: "Payments",
+    includeInTotal: true,
+    ...extra,
+  });
+
+  it("acepta el límite en una tarjeta y lo devuelve", async () => {
+    const respuesta = await cliente.post(
+      "/api/accounts",
+      nuevaCuenta({ name: "Visa", type: "CREDIT_CARD", creditLimit: 1500 }),
+    );
+    esperarEstado(respuesta, 201);
+
+    const visa = (await cuentas()).find((c) => c.name === "Visa")!;
+    expect(visa.creditLimit).toBe(1500);
+  });
+
+  it("rechaza el límite en una cuenta que no es tarjeta", async () => {
+    // No se ignora en silencio: significa que el cliente entendió mal el modelo.
+    const respuesta = await cliente.post(
+      "/api/accounts",
+      nuevaCuenta({ name: "Ahorros", type: "BANK", creditLimit: 1000 }),
+    );
+    esperarEstado(respuesta, 400);
+  });
+
+  it("rechaza un límite de cero o negativo", async () => {
+    for (const creditLimit of [0, -100]) {
+      const respuesta = await cliente.post(
+        "/api/accounts",
+        nuevaCuenta({ name: "Mala", type: "CREDIT_CARD", creditLimit }),
+      );
+      esperarEstado(respuesta, 400);
+    }
+  });
+
+  it("sin límite se guarda como null, que es un estado válido", async () => {
+    esperarEstado(
+      await cliente.post(
+        "/api/accounts",
+        nuevaCuenta({ name: "Sin límite", type: "CREDIT_CARD" }),
+      ),
+      201,
+    );
+
+    const tarjeta = (await cuentas()).find((c) => c.name === "Sin límite")!;
+    expect(tarjeta.creditLimit).toBeNull();
+  });
+
+  it("al dejar de ser tarjeta se limpia el límite", async () => {
+    await cliente.post(
+      "/api/accounts",
+      nuevaCuenta({ name: "Mutante", type: "CREDIT_CARD", creditLimit: 900 }),
+    );
+    const tarjeta = (await cuentas()).find((c) => c.name === "Mutante")!;
+
+    // Pasa a ser cuenta de banco y ya no manda límite.
+    esperarEstado(
+      await cliente.put(`/api/accounts/${tarjeta.id}`, {
+        name: "Mutante",
+        type: "BANK",
+        balance: 0,
+        colorHex: tarjeta.colorHex,
+        iconName: tarjeta.iconName,
+        includeInTotal: true,
+      }),
+      200,
+    );
+
+    const despues = (await cuentas()).find((c) => c.id === tarjeta.id)!;
+    expect(despues.creditLimit).toBeNull();
+  });
+
+  it("gastar con la tarjeta la deja en negativo: eso es la deuda", async () => {
+    await cliente.post(
+      "/api/accounts",
+      nuevaCuenta({ name: "Amex", type: "CREDIT_CARD", creditLimit: 1000 }),
+    );
+    const amex = (await cuentas()).find((c) => c.name === "Amex")!;
+
+    await cliente.post("/api/transactions", {
+      amount: 250,
+      type: "EXPENSE",
+      accountId: amex.id,
+      categoryId: comida.id,
+      date: Date.now(),
+    });
+
+    // El signo que asume `lib/credit.ts` para calcular la utilización.
+    expect(await saldoDe(amex.id)).toBe(-250);
+  });
+});
+
+describe("colchón y cuadre", () => {
+  const cuadrar = (cuenta: Account, realBalance: number, applyBuffer = true) =>
+    cliente.post(`/api/accounts/${cuenta.id}/reconcile`, { realBalance, applyBuffer });
+
+  /**
+   * Pone el colchón sin mover el balance.
+   *
+   * La cuenta se relee antes: al EDITAR, `balance` es el balance ACTUAL deseado
+   * (§8.3), así que mandar el valor capturado en el `beforeEach` reescribiría
+   * el saldo con una cifra ya caducada.
+   */
+  const conColchon = async (id: string, bufferAmount: number) => {
+    const actual = (await cuentas()).find((c) => c.id === id)!;
+    return cliente.put(`/api/accounts/${id}`, {
+      name: actual.name,
+      type: actual.type,
+      balance: actual.currentBalance,
+      bufferAmount,
+      colorHex: actual.colorHex,
+      iconName: actual.iconName,
+      includeInTotal: actual.includeInTotal,
+    });
+  };
+
+  it("si falta dinero, el cuadre crea un ingreso de ajuste", async () => {
+    await editarCuenta(efectivo, { balance: 500 });
+
+    // El banco dice 620: faltan 120 por registrar.
+    const respuesta = await cuadrar(efectivo, 620);
+    esperarEstado(respuesta, 200);
+
+    expect(await saldoDe(efectivo.id)).toBe(620);
+
+    const ajustes = (await movimientos()).filter((t) => t.note === "Ajuste de cuadre");
+    expect(ajustes).toHaveLength(1);
+    expect(ajustes[0]!.type).toBe("INCOME");
+    expect(ajustes[0]!.amount).toBe(120);
+  });
+
+  it("si sobra dinero, el cuadre crea un gasto de ajuste", async () => {
+    await editarCuenta(efectivo, { balance: 500 });
+
+    esperarEstado(await cuadrar(efectivo, 430), 200);
+
+    expect(await saldoDe(efectivo.id)).toBe(430);
+    const ajustes = (await movimientos()).filter((t) => t.note === "Ajuste de cuadre");
+    expect(ajustes[0]!.type).toBe("EXPENSE");
+    expect(ajustes[0]!.amount).toBe(70);
+  });
+
+  it("si ya cuadra no crea ninguna transacción, pero apunta la fecha", async () => {
+    await editarCuenta(efectivo, { balance: 500 });
+
+    esperarEstado(await cuadrar(efectivo, 500), 200);
+
+    expect(
+      (await movimientos()).filter((t) => t.note === "Ajuste de cuadre"),
+    ).toHaveLength(0);
+    const despues = (await cuentas()).find((c) => c.id === efectivo.id)!;
+    expect(despues.lastReconciledAt).not.toBeNull();
+  });
+
+  it("el ajuste deja el saldo exactamente en el real, no aproximado", async () => {
+    await editarCuenta(efectivo, { balance: 1234.56 });
+    esperarEstado(await cuadrar(efectivo, 1000.01), 200);
+    expect(await saldoDe(efectivo.id)).toBeCloseTo(1000.01, 6);
+  });
+
+  it("cuadrar dos veces seguidas no crea un segundo ajuste fantasma", async () => {
+    await editarCuenta(efectivo, { balance: 500 });
+    await cuadrar(efectivo, 620);
+    await cuadrar(efectivo, 620);
+
+    expect(
+      (await movimientos()).filter((t) => t.note === "Ajuste de cuadre"),
+    ).toHaveLength(1);
+  });
+
+  it("el cuadre recuerda si se aplicó el colchón", async () => {
+    await conColchon(efectivo.id, 200);
+
+    esperarEstado(await cuadrar(efectivo, 500, false), 200);
+    expect((await cuentas()).find((c) => c.id === efectivo.id)!.bufferApplied).toBe(
+      false,
+    );
+
+    esperarEstado(await cuadrar(efectivo, 500, true), 200);
+    expect((await cuentas()).find((c) => c.id === efectivo.id)!.bufferApplied).toBe(true);
+  });
+
+  it("el colchón se guarda y no toca el balance", async () => {
+    await editarCuenta(efectivo, { balance: 1000 });
+    esperarEstado(await conColchon(efectivo.id, 300), 200);
+
+    const despues = (await cuentas()).find((c) => c.id === efectivo.id)!;
+    // El dinero sigue en la cuenta: lo que baja es el disponible, que se
+    // calcula en el cliente (`lib/colchon.ts`).
+    expect(despues.currentBalance).toBe(1000);
+    expect(despues.bufferAmount).toBe(300);
+  });
+
+  it("rechaza un colchón negativo", async () => {
+    esperarEstado(await conColchon(efectivo.id, -50), 400);
+  });
+
+  it("rechaza el colchón en una tarjeta de crédito", async () => {
+    esperarEstado(
+      await cliente.post("/api/accounts", {
+        name: "Tarjeta con colchón",
+        type: "CREDIT_CARD",
+        balance: 0,
+        bufferAmount: 100,
+        colorHex: "#F44336",
+        iconName: "CreditCard",
+        includeInTotal: true,
+      }),
+      400,
+    );
+  });
+
+  it("cuadrar una cuenta que no existe da 404", async () => {
+    esperarEstado(
+      await cliente.post("/api/accounts/01900000-0000-7000-8000-000000000000/reconcile", {
+        realBalance: 100,
+        applyBuffer: true,
+      }),
+      404,
+    );
+  });
+});
+
 describe("balance de una cuenta (§8.1)", () => {
   it("suma ingresos y resta gastos sobre el balance inicial", async () => {
     await editarCuenta(efectivo, { balance: 500 });

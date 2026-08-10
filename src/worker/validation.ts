@@ -89,6 +89,23 @@ export class Validator {
     return v;
   }
 
+  /**
+   * Número opcional que además admite `null` explícito.
+   *
+   * Distingue tres casos que no son lo mismo: ausente y `null` significan «sin
+   * valor» y devuelven `null`; cualquier otra cosa se valida como número. Lo
+   * usan los campos que se pueden dejar sin configurar, como el límite de
+   * crédito de una tarjeta.
+   */
+  nullableNumber(
+    field: string,
+    { min, max }: { min?: number; max?: number } = {},
+  ): number | null {
+    const v = this.body[field];
+    if (v === undefined || v === null) return null;
+    return this.number(field, { min, max });
+  }
+
   /** Importe estrictamente positivo, como valida `AddEditTransactionViewModel`. */
   positiveAmount(field: string): number {
     const v = this.number(field);

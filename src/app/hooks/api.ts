@@ -10,7 +10,12 @@ import type {
   CategorySpend,
   DailySpend,
   DashboardSummary,
+  FixedExpense,
+  FixedExpenseInputDto,
+  MarkPaidResult,
   MonthlyTrendPoint,
+  ReconcileInput,
+  ReconcileResult,
   Transaction,
   TransactionInput,
   UserSettings,
@@ -34,6 +39,7 @@ export const claves = {
   transacciones: (filtros?: FiltrosTransacciones) =>
     filtros ? (["transactions", filtros] as const) : (["transactions"] as const),
   presupuestos: ["budgets"] as const,
+  gastosFijos: ["fixed-expenses"] as const,
   ajustes: ["settings"] as const,
   estadisticas: ["stats"] as const,
   panel: (year?: number, month?: number) => ["stats", "dashboard", year, month] as const,
@@ -144,6 +150,7 @@ function useInvalidarDatos() {
     void queryClient.invalidateQueries({ queryKey: ["transactions"] });
     void queryClient.invalidateQueries({ queryKey: claves.cuentas });
     void queryClient.invalidateQueries({ queryKey: claves.presupuestos });
+    void queryClient.invalidateQueries({ queryKey: claves.gastosFijos });
     void queryClient.invalidateQueries({ queryKey: claves.estadisticas });
   };
 }
@@ -171,6 +178,64 @@ export function useDeleteAccount() {
   const invalidar = useInvalidarDatos();
   return useMutation<{ id: string }, Error, string>({
     mutationKey: MUTACIONES.borrarCuenta,
+    onSuccess: invalidar,
+  });
+}
+
+/** Duplica varias transacciones a una fecha. Nunca toca las originales. */
+export function useDuplicateTransactions() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<{ ids: string[] }, Error, { ids: string[]; date: number }>({
+    mutationKey: MUTACIONES.duplicarTransacciones,
+    onSuccess: invalidar,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Gastos fijos
+// ---------------------------------------------------------------------------
+
+export function useFixedExpenses() {
+  return useQuery({
+    queryKey: claves.gastosFijos,
+    queryFn: () => api.get<FixedExpense[]>("/api/fixed-expenses"),
+  });
+}
+
+export function useSaveFixedExpense() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<
+    { id: string },
+    Error,
+    FixedExpenseInputDto & { id?: string; nuevoId?: string }
+  >({
+    mutationKey: MUTACIONES.guardarGastoFijo,
+    onSuccess: invalidar,
+  });
+}
+
+export function useDeleteFixedExpense() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<{ id: string }, Error, string>({
+    mutationKey: MUTACIONES.borrarGastoFijo,
+    onSuccess: invalidar,
+  });
+}
+
+/** Marca un gasto fijo como pagado: crea la transacción y avanza el ciclo. */
+export function useMarkFixedExpensePaid() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<MarkPaidResult, Error, { id: string; transactionId?: string }>({
+    mutationKey: MUTACIONES.pagarGastoFijo,
+    onSuccess: invalidar,
+  });
+}
+
+/** Cuadre contra el saldo real: crea la transacción de ajuste (§8.3 bis). */
+export function useReconcileAccount() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<ReconcileResult, Error, ReconcileInput & { id: string }>({
+    mutationKey: MUTACIONES.cuadrarCuenta,
     onSuccess: invalidar,
   });
 }

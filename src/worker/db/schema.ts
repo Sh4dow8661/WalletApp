@@ -56,6 +56,22 @@ export const walletAccounts = sqliteTable(
      * (§8.3). Al crear, es el balance inicial tal cual.
      */
     initialBalance: real("initial_balance").notNull().default(0),
+    /**
+     * Límite de crédito, solo en `CREDIT_CARD`. Null = sin configurar, y
+     * entonces la app no calcula utilización en vez de inventarse un
+     * porcentaje. Que solo lo lleven las tarjetas lo impone `routes/accounts.ts`
+     * (no cabe en un CHECK de columna, ver la migración 0002).
+     */
+    creditLimit: real("credit_limit"),
+    /**
+     * Mínimo que no se quiere gastar. El balance no cambia; lo que baja es el
+     * disponible (`balance − colchón`). Ver `lib/colchon.ts`.
+     */
+    bufferAmount: real("buffer_amount").notNull().default(0),
+    /** Si se apaga, el importe se conserva pero no se descuenta. */
+    bufferApplied: integer("buffer_applied", { mode: "boolean" }).notNull().default(true),
+    /** Última vez que se cuadró contra el saldo real. Null = nunca. */
+    lastReconciledAt: integer("last_reconciled_at"),
     colorHex: text("color_hex").notNull(),
     iconName: text("icon_name").$type<IconName>().notNull(),
     /** Si es false, la cuenta no suma al balance total del dashboard (§8.1). */
@@ -157,6 +173,43 @@ export const transactionBudgetRef = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.transactionId, t.budgetId] }),
     index("idx_tbr_budget").on(t.budgetId),
+  ],
+);
+
+/**
+ * Gastos fijos recurrentes (seguros, suscripciones, alquiler…).
+ *
+ * `everyMonths` permite periodicidades que no son mensuales, que es lo que hace
+ * falta para calcular el costo mensual equivalente. Ver `lib/gastos-fijos.ts`.
+ */
+export const fixedExpenses = sqliteTable(
+  "fixed_expenses",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    amount: real("amount").notNull(),
+    /** 1 = mensual, 12 = anual. */
+    everyMonths: integer("every_months").notNull(),
+    nextDueDate: integer("next_due_date").notNull(),
+    /**
+     * Día del mes al que está anclado. Se guarda aparte del vencimiento para
+     * que un recibo del 31 no se quede clavado en el 28 tras pasar por febrero
+     * (ver la migración 0004).
+     */
+    anchorDay: integer("anchor_day").notNull(),
+    /** De dónde sale el dinero. Puede ser una tarjeta. */
+    accountId: text("account_id"),
+    categoryId: text("category_id"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    note: text("note").notNull().default(""),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    deletedAt: integer("deleted_at"),
+  },
+  (t) => [
+    index("idx_fixed_expenses_user").on(t.userId),
+    index("idx_fixed_expenses_due").on(t.userId, t.nextDueDate),
   ],
 );
 

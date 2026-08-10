@@ -678,6 +678,312 @@ tests se adaptan a ella en vez de desactivarla.
 - **Aviso de versión nueva** en vez de recarga silenciosa (`registerType: "prompt"`).
 - **Caché persistida en IndexedDB** y **cola de escrituras offline**.
 
+---
+
+## 12. Tarjetas de crédito y utilización
+
+Añadido después de la migración. Hasta aquí una tarjeta se listaba y se sumaba
+igual que una cuenta de efectivo, que es incorrecto: **una tarjeta no es dinero
+que se tiene, es deuda**.
+
+### Convención de signos — la que ya había, no una nueva
+
+`balance.ts` hace que un `EXPENSE` reste del balance de su cuenta, así que
+gastar con una tarjeta la deja en **negativo**. De ahí sale todo lo demás:
+
+    deuda = −balance   (solo cuando el balance es negativo)
+
+Un balance positivo en una tarjeta es saldo a favor (un pago de más o una
+devolución), no deuda negativa: ahí la deuda es 0. Y un balance negativo en una
+cuenta normal es un descubierto, que es otra cosa y no se mide contra ningún
+límite. Todo esto vive en `src/lib/credit.ts`, compartido entre cliente y
+servidor igual que `balance.ts`.
+
+Hay un test que ata `credit.ts` a `balance.ts`: si alguien cambiara el signo de
+un `EXPENSE`, la deuda pasaría a calcularse al revés y fallaría.
+
+### `credit_limit` (migración 0002)
+
+`REAL` nullable, con `CHECK (credit_limit IS NULL OR credit_limit > 0)`. Null
+significa **sin configurar**, y entonces la app no calcula porcentaje en vez de
+inventárselo.
+
+La regla de que solo una `CREDIT_CARD` pueda tenerlo **no cabe en el esquema**:
+tendría que mirar `type`, y SQLite no deja añadir un CHECK de tabla con `ALTER
+TABLE`. La impone `routes/accounts.ts`, con tests de API que lo cubren. Al
+cambiar una tarjeta a otro tipo el límite se limpia, para que no reaparezca al
+volver a convertirla en tarjeta.
+
+### Semáforo
+
+Los cortes salen de la guía real de crédito (bajo 30 % no penaliza, bajo 10 %
+es lo ideal): **0–9 excelente · 10–29 bien · 30–49 aviso · 50–79 malo · 80+
+crítico**.
+
+Dos decisiones que conviene no deshacer sin pensarlo:
+
+1. **El nivel se decide sobre el porcentaje ya redondeado**, el mismo número
+   que se enseña. Sobre el exacto, un 29,6 % se mostraría como «30 %» junto al
+   texto «por debajo del 30 % recomendado», que se lee como una contradicción.
+2. **El color nunca va solo.** Cada nivel lleva etiqueta ("Atención",
+   "Crítico"…) y una frase que explica qué significa, porque quien no distingue
+   el verde del rojo tiene que enterarse igual (§10). La barra además es un
+   `role="meter"` con su `aria-label`.
+
+### Agregado
+
+La utilización total se calcula sobre **la suma de deudas dividida entre la
+suma de límites**, no promediando porcentajes: una tarjeta de 10 000 al 50 % y
+otra de 100 al 0 % dan 49,5 %, no 25 %. Las tarjetas sin límite quedan fuera del
+porcentaje (no hay contra qué medirlas) pero **sí cuentan en la deuda**, y la UI
+avisa de cuántas son.
+
+### Activos, deuda y neto
+
+La pantalla de Cuentas enseña tres cifras en vez de un total revuelto, y separa
+las tarjetas en su propia sección. `net = activos − deuda` **coincide con el
+`totalBalance` que ya calculaba el servidor** — no es una cifra nueva que pueda
+contradecir al dashboard, es la misma suma vista de otra forma. Hay un test que
+lo comprueba.
+
+Los agregados respetan `includeInTotal` (§8.1), la misma regla del balance
+total: aplicar aquí un criterio distinto haría que una cuenta contase en una
+pantalla y no en otra.
+
+### Exportar / importar
+
+`creditLimit` viaja en el JSON de exportación (aunque sea null): sin él,
+reimportar un respaldo dejaría las tarjetas sin límite. Al importar se aplican
+las mismas dos reglas que el API, pero un archivo viejo o tocado a mano **no
+invalida la importación entera**: esa cuenta entra sin límite, que es un estado
+válido. Un CSV no trae tipos de cuenta, así que de ahí nunca salen tarjetas.
+
+---
+
+## 13. Colchón por cuenta y cuadre
+
+### Colchón (migración 0003)
+
+Un **colchón** es el mínimo que no se quiere tocar. El dinero sigue en la cuenta
+—el balance no cambia— pero deja de contar como disponible:
+
+    disponible = balance − colchón
+
+Tres campos nuevos, todos con valor por defecto para que las cuentas que ya
+existían se comporten **exactamente igual que antes**: `buffer_amount` (REAL,
+0, con `CHECK >= 0`), `buffer_applied` (INTEGER, 1) y `last_reconciled_at`
+(INTEGER, nullable). Con colchón 0 la UI no enseña ni una palabra de más.
+
+`buffer_applied` sirve para dos cosas a la vez: si se apaga, el importe se
+conserva pero no se descuenta; y es el valor que la pantalla de cuadre propone
+marcado o desmarcado, que es lo que se pidió — que la elección se recuerde.
+
+Cuando hay colchón, la UI enseña **siempre las dos cifras**. Solo el disponible
+escondería dinero que existe de verdad; solo el balance es justo lo que hace
+creer que hay más de lo que se puede gastar.
+
+**El disponible puede salir negativo y se muestra tal cual, en rojo.** Recortarlo
+a 0 ocultaría que se está por debajo del propio mínimo, que es justo lo que hay
+que ver.
+
+En una **tarjeta** el colchón no significa nada: no hay saldo del que apartar
+una parte, sino deuda. Ni se aplica ni se ofrece, y el API lo rechaza.
+
+### Cuadre — y en qué se diferencia de §8.3
+
+**Ya existía un mecanismo parecido y no se ha duplicado**: editar el «balance
+actual» de una cuenta (§8.3) despeja el balance inicial para que cuadre. La
+diferencia es de fondo:
+
+|                   | Editar balance actual (§8.3)                     | Cuadrar (nuevo)                  |
+| ----------------- | ------------------------------------------------ | -------------------------------- |
+| Qué toca          | El balance **inicial**                           | Crea una **transacción**         |
+| Rastro            | Ninguno                                          | Un movimiento con fecha y nota   |
+| Se puede deshacer | No                                               | Sí, borrando la transacción      |
+| Para qué sirve    | Corregir el punto de partida de una cuenta nueva | Cuadre periódico contra el banco |
+
+Los dos se quedan, porque resuelven cosas distintas. Para un cuadre que se
+repite cada mes se quiere el rastro; para arreglar el saldo inicial de una
+cuenta recién creada, no.
+
+El endpoint es `POST /api/accounts/:id/reconcile`. El balance calculado **se lee
+en la misma petición**, no se acepta del cliente: si no, se podría cuadrar
+contra una cifra ya caducada.
+
+Decisiones que conviene no deshacer:
+
+- **Umbral de medio céntimo.** Los balances son `REAL`; sin umbral, cuadrar una
+  cuenta ya cuadrada crearía un ajuste de 4e−17. Si la diferencia queda por
+  debajo, no se crea nada y solo se apunta la fecha.
+- **El importe se redondea a céntimos.** El ajuste acaba en el historial del
+  usuario, y `200 − 154.1` da `45.900000000000006`. El saldo puede quedar a
+  menos de medio céntimo del real, que está por debajo del umbral y por tanto
+  no se acumula.
+- **Categoría del ajuste**: «Otros» del tipo que toque (INCOME o EXPENSE), que
+  existe en toda cuenta sembrada. Si el usuario la borró, el ajuste va sin
+  categoría antes que fallar el cuadre entero.
+- El `adjustmentId` lo genera el cliente, así que reenviar un cuadre pendiente
+  desde la cola offline no crea dos ajustes (§9).
+
+---
+
+## 14. Gastos fijos (migración 0004)
+
+No todo se paga cada mes. Un seguro de 600 al año no cuesta 600 un mes y 0 los
+demás: cuesta **50 al mes** que habría que ir apartando.
+
+    equivalente mensual = importe del recibo / cada cuántos meses se paga
+
+La pantalla enseña **dos totales distintos, y los dos hacen falta**: el
+equivalente mensual de todos los gastos y lo que toca pagar _este_ mes concreto.
+Un mes sin recibos tiene el segundo a 0 aunque el primero sea alto, y eso es
+justo lo que evita creer que ese mes sobra dinero.
+
+### Redondeo del equivalente
+
+**No se redondea en el cálculo, solo al pintar.** Redondeando antes, el total
+sería la suma de cifras ya recortadas: doce gastos de 100/3 (33,3333…) darían
+399,96 en vez de 400.
+
+La contrapartida es que la suma de lo que se ve línea a línea puede diferir en
+algún céntimo del total que se enseña. Se prefiere así: un céntimo en una línea
+se perdona, un total que no cuadra con la realidad no.
+
+### El caso del día 31 — `anchor_day`
+
+Un recibo del 31 de enero no puede vencer el 31 de febrero: se recorta al último
+día del mes, reutilizando el mismo `zonedTime` que ya usan los períodos de
+presupuesto (§8.5).
+
+**La clave es que el ancla se guarda aparte, en `anchor_day`.** Si el siguiente
+salto se calculase desde el vencimiento recortado, el recibo se quedaría clavado
+en el día 28 para siempre:
+
+|     | Derivando del último vencimiento | Con `anchor_day` (lo implementado) |
+| --- | -------------------------------- | ---------------------------------- |
+| ene | 31                               | 31                                 |
+| feb | 28                               | 28                                 |
+| mar | **28** ← mal                     | **31**                             |
+| abr | 28                               | 30                                 |
+| may | 28                               | 31                                 |
+
+Hay tests unitarios y de API de esa serie exacta, incluido el 29 de febrero de
+un año bisiesto.
+
+### Marcar como pagado
+
+Crea la transacción **real** en la cuenta indicada y avanza el vencimiento, todo
+en un mismo batch: o pasan las dos cosas o ninguna. **Nunca ocurre solo** — la
+app no genera transacciones automáticas, hace falta confirmar.
+
+Borrar un gasto fijo es lógico y **no borra los pagos ya registrados**: son
+gastos que ocurrieron de verdad y borrarlos descuadraría los balances.
+
+Un gasto inactivo sigue en la lista pero ni suma al equivalente ni avisa, y cae
+siempre al final de la ordenación.
+
+---
+
+## 15. Duplicar transacciones
+
+Dos caminos distintos a propósito:
+
+- **Una sola** → `/transacciones/nueva?duplicar=<id>`. **No crea nada**: abre el
+  alta prellenada con la fecha de hoy para que el usuario confirme o ajuste. Lo
+  que se guarda es una transacción nueva; la original no se toca nunca.
+- **Varias** → `POST /api/transactions/duplicate { ids, date }`. Aquí no hay
+  formulario que confirmar una por una, así que el trabajo lo hace el servidor
+  de una vez.
+
+### Transferencias
+
+Duplicar una pata suelta dejaría las cuentas descuadradas — exactamente el bug
+de §8.2. Por eso:
+
+1. Una transferencia se duplica como **par completo**, con un
+   `transferGroupId` **nuevo**.
+2. Se **deduplica por grupo**: si se marcan las dos patas en la lista, se
+   duplica una vez. Sin esto, seleccionar todo crearía el doble de
+   transferencias.
+3. Da igual desde qué pata se duplique: siempre se reconstruye desde la
+   saliente, así que el dinero sale de donde salía.
+4. Una transferencia huérfana importada de Android (sin pareja, §8.2) **se
+   salta**: sin destino no se puede reconstruir el par.
+
+Los enlaces a presupuestos se copian: duplicar es «otra igual», y el enlace es
+parte de la transacción original.
+
+### El patrón de la UI
+
+La petición pedía que la acción fuese alcanzable sin hover en móvil y **sin
+inventar un patrón nuevo si ya hay uno**. La app no usa deslizar en ninguna
+pantalla, así que no se ha añadido aquí:
+
+- en el detalle, un botón de icono en la cabecera, junto al de eliminar — el
+  mismo sitio donde ya viven las acciones de cuentas, categorías y presupuestos;
+- en la lista, un botón «Seleccionar» en la cabecera que activa el modo
+  selección; en ese modo las filas marcan en vez de navegar, y la acción aparece
+  en una barra fija abajo, al alcance del pulgar.
+
+---
+
+## 16. Auditoría del ciclo de vida de una transferencia
+
+Revisión pedida expresamente para comprobar que el bug de §8.2 está cerrado, sin
+reescribir nada. **Conclusión: está cerrado.** No hizo falta ningún arreglo.
+
+### Qué se auditó y qué salió
+
+| Operación                     | Resultado                                                       |
+| ----------------------------- | --------------------------------------------------------------- |
+| Crear                         | Dos patas, mismo grupo, cuentas cruzadas ✔                      |
+| Editar importe, fecha o nota  | Las dos se mueven juntas ✔                                      |
+| Cambiar **solo** el origen    | El dinero sale de la cuenta nueva; el destino no se toca ✔      |
+| Cambiar **solo** el destino   | Simétrico ✔                                                     |
+| Intercambiar origen y destino | Invierte el sentido sin dejar restos ✔                          |
+| Borrar la transferencia       | Se lleva las dos patas ✔                                        |
+| Borrar una **cuenta**         | Se lleva las dos patas; el saldo de la otra vuelve a su sitio ✔ |
+| Exportar e importar JSON      | Sobrevive con su par, su grupo y sus saldos ✔                   |
+| 5 ediciones seguidas          | Patrimonio total a 0 en cada paso ✔                             |
+
+### El hueco `ON DELETE CASCADE` frente a `ON DELETE SET NULL`
+
+En `transactions`, `account_id` es CASCADE y `transfer_account_id` es SET NULL.
+La sospecha era: al borrar una cuenta, una pata se borra y la otra sobrevive
+convertida en una transferencia a ninguna parte.
+
+**El hueco existe en el esquema y está demostrado con un test** que borra la
+cuenta con SQL directo, saltándose el API: la pata de la cuenta borrada
+desaparece y la otra queda con `transfer_account_id = NULL`. Las claves foráneas
+de D1 están activas, así que el mecanismo es real.
+
+**Pero no es alcanzable**, por dos motivos independientes:
+
+1. **El borrado de cuentas del API es lógico** (`deleted_at`), así que la clave
+   foránea nunca se dispara. Y `DELETE /api/accounts/:id` marca además todas las
+   transacciones donde la cuenta aparece **como origen o como destino**, así que
+   tampoco deja patas sueltas por su cuenta.
+2. **El único borrado físico de cuentas de todo el código** está en la
+   importación (`sentenciasDeBorrado`), y ahí las transacciones se borran
+   **antes** que las cuentas: cuando llega el `DELETE` de `wallet_accounts` ya no
+   queda ninguna fila que cascadear.
+
+Por eso **no se ha tocado el esquema**: cambiar la clave foránea no arreglaría
+nada que hoy pueda romperse, y alterar una FK en SQLite obliga a recrear la
+tabla entera — riesgo real a cambio de ningún beneficio.
+
+Lo que sí quedan son **dos tests de regresión** que vigilan las condiciones de
+las que depende esa conclusión: que ninguna ruta del API borre cuentas
+físicamente, y que tras importar no quede ninguna transacción apuntando a una
+cuenta inexistente. Si alguien añade un borrado físico, fallan.
+
+### Transferencias huérfanas de Android
+
+El importador ya las trata: empareja las dos patas por importe, fecha y cuentas,
+y las que no encuentran pareja **se importan igual** —el dinero estuvo ahí— y se
+cuentan aparte en `transferenciasHuerfanas` del resumen, para poder revisarlas.
+Al duplicar, una pata huérfana se salta: sin destino no hay par que reconstruir.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se

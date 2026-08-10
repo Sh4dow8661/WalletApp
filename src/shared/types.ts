@@ -28,6 +28,18 @@ export interface Account {
   initialBalance: number;
   /** `initialBalance` más el neto de movimientos. Lo calcula el servidor. */
   currentBalance: number;
+  /**
+   * Límite de crédito. Solo en `CREDIT_CARD` y puede faltar: sin él no se
+   * calcula utilización. En una tarjeta, un `currentBalance` negativo es deuda
+   * (ver `lib/credit.ts`).
+   */
+  creditLimit: number | null;
+  /** Mínimo que no se quiere gastar. 0 = sin colchón (ver `lib/colchon.ts`). */
+  bufferAmount: number;
+  /** Si es false, el colchón se guarda pero no se descuenta. */
+  bufferApplied: boolean;
+  /** Última vez que se cuadró contra el saldo real. Null = nunca. */
+  lastReconciledAt: number | null;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
@@ -45,9 +57,36 @@ export interface AccountInput {
    * deseado y el servidor despeja el inicial (§8.3).
    */
   balance: number;
+  /**
+   * Solo se acepta en `CREDIT_CARD` y debe ser > 0. En cualquier otro tipo el
+   * servidor lo rechaza; manda `null` para quitarlo.
+   */
+  creditLimit?: number | null;
+  /** No puede ser negativo. Se ignora en las tarjetas. */
+  bufferAmount?: number;
+  bufferApplied?: boolean;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
+}
+
+/** Cuadre de una cuenta contra el saldo real. */
+export interface ReconcileInput {
+  /** El saldo que la cuenta tiene de verdad, el que se ve en el banco. */
+  realBalance: number;
+  /** Si el colchón se descuenta. Se guarda como default de la cuenta. */
+  applyBuffer: boolean;
+  /** Id de la transacción de ajuste, generado por el cliente (§9). */
+  adjustmentId?: string;
+}
+
+export interface ReconcileResult {
+  calculated: number;
+  real: number;
+  difference: number;
+  /** Null cuando ya cuadraba: no se creó ninguna transacción. */
+  adjustmentId: string | null;
+  reconciledAt: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +190,48 @@ export interface BudgetInput {
   startDate: number;
   endDate: number;
   recurrence: BudgetRecurrence;
+}
+
+// ---------------------------------------------------------------------------
+// Gastos fijos
+// ---------------------------------------------------------------------------
+
+export interface FixedExpense {
+  id: string;
+  name: string;
+  /** Importe del recibo, no el equivalente mensual. */
+  amount: number;
+  /** Cada cuántos meses se paga. 1 = mensual, 12 = anual. */
+  everyMonths: number;
+  nextDueDate: number;
+  /** Día del mes al que está anclado (ver `lib/gastos-fijos.ts`). */
+  anchorDay: number;
+  accountId: string | null;
+  categoryId: string | null;
+  isActive: boolean;
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FixedExpenseInputDto {
+  id?: string;
+  name: string;
+  amount: number;
+  everyMonths: number;
+  nextDueDate: number;
+  accountId?: string | null;
+  categoryId?: string | null;
+  isActive?: boolean;
+  note?: string;
+}
+
+/** Resultado de marcar un gasto fijo como pagado. */
+export interface MarkPaidResult {
+  /** Transacción creada por el pago. */
+  transactionId: string;
+  /** Vencimiento ya avanzado al siguiente ciclo. */
+  nextDueDate: number;
 }
 
 // ---------------------------------------------------------------------------

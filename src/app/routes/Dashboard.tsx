@@ -1,9 +1,23 @@
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Receipt, Wallet } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Check,
+  ChevronRight,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import { Link } from "react-router";
 
+import {
+  availableBalance,
+  hasActiveBuffer,
+  summarizeAvailability,
+} from "@/lib/colchon.ts";
+import { cardDebt, isCreditCard, summarizeAccounts } from "@/lib/credit.ts";
 import { formatMoney } from "@/lib/money.ts";
 import type { Category, Transaction } from "@/shared/types.ts";
 
+import { BarraUtilizacion } from "../components/credito.tsx";
 import { CategoryIcon, MoneyText } from "../components/domain.tsx";
 import { Card, EmptyState, Skeleton } from "../components/ui/card.tsx";
 import {
@@ -26,6 +40,8 @@ export function DashboardScreen() {
   const cuentas = useAccounts();
   const categorias = useCategories();
   const recientes = useTransactions({ from, to, limit: 10 });
+  const resumenCuentas = summarizeAccounts(cuentas.data ?? []);
+  const disponibilidad = summarizeAvailability(cuentas.data ?? []);
 
   return (
     <div className="space-y-4 p-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 md:p-6 xl:grid-cols-3">
@@ -34,12 +50,29 @@ export function DashboardScreen() {
         {/* A partir de xl el balance vive en la cabecera fija: repetirlo aquí
             sería decir lo mismo dos veces en la misma pantalla. */}
         <div className="xl:hidden">
-          <p className="text-xs opacity-80">Balance total</p>
+          {/* Con colchones, la cifra grande es el DISPONIBLE real: es lo que se
+              puede gastar. Lo retenido se dice justo debajo para que no
+              parezca que ha desaparecido dinero. Sin colchones no cambia nada
+              respecto a antes. */}
+          <p className="text-xs opacity-80">
+            {disponibilidad.hasAnyBuffer ? "Disponible real" : "Balance total"}
+          </p>
           {resumen.isPending ? (
             <Skeleton className="mt-2 h-9 w-40 bg-white/25" />
           ) : (
             <p className="mt-1 text-3xl font-bold tabular-nums">
-              {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
+              {formatMoney(
+                disponibilidad.hasAnyBuffer
+                  ? disponibilidad.available
+                  : (resumen.data?.totalBalance ?? 0),
+                currency,
+              )}
+            </p>
+          )}
+          {disponibilidad.hasAnyBuffer && (
+            <p className="mt-0.5 text-xs opacity-80">
+              {formatMoney(disponibilidad.reserved, currency)} retenidos en colchones ·{" "}
+              {formatMoney(resumen.data?.totalBalance ?? 0, currency)} en total
             </p>
           )}
         </div>
@@ -66,6 +99,35 @@ export function DashboardScreen() {
         </p>
       </Card>
 
+      {/* Utilización agregada de todas las tarjetas. Importa tanto como la de
+          cada una: es la cifra que mira el scoring de crédito. */}
+      {resumenCuentas.totalPercent !== null && resumenCuentas.totalLevel !== null && (
+        <Card className="space-y-2 md:col-span-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold opacity-70">Utilización del crédito</h2>
+            <Link
+              to="/cuentas"
+              // min-h-11 = 44 px: el objetivo táctil mínimo de §10, igual que
+              // el "Ver todo" de las demás secciones.
+              className="-mr-2 flex min-h-11 items-center px-2 text-xs font-medium text-primary hover:underline"
+            >
+              Ver tarjetas
+            </Link>
+          </div>
+          <BarraUtilizacion
+            utilizacion={{
+              debt: resumenCuentas.debt,
+              limit: resumenCuentas.totalLimit,
+              percent: resumenCuentas.totalPercent,
+              level: resumenCuentas.totalLevel,
+              available: null,
+              isOverLimit: false,
+            }}
+            currency={currency}
+          />
+        </Card>
+      )}
+
       <section className="space-y-2 md:col-span-1">
         <EncabezadoSeccion titulo="Cuentas" enlace="/cuentas" />
         {cuentas.isPending ? (
@@ -80,25 +142,51 @@ export function DashboardScreen() {
           </Card>
         ) : (
           <div className="grid gap-2">
-            {cuentas.data?.map((cuenta) => (
-              <Card key={cuenta.id} className="flex items-center gap-3 py-3">
-                <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{cuenta.name}</p>
-                  {!cuenta.includeInTotal && (
-                    <p className="text-xs opacity-50">No cuenta en el total</p>
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 text-sm font-semibold tabular-nums",
-                    cuenta.currentBalance < 0 && "text-expense",
-                  )}
-                >
-                  {formatMoney(cuenta.currentBalance, currency)}
-                </span>
-              </Card>
-            ))}
+            {cuentas.data?.map((cuenta) => {
+              // En una tarjeta se enseña la deuda en positivo: "300 $ de deuda"
+              // se lee de un vistazo, "−300 $" hay que traducirlo cada vez.
+              const tarjeta = isCreditCard(cuenta);
+              const importe = tarjeta ? cardDebt(cuenta) : cuenta.currentBalance;
+
+              return (
+                <Card key={cuenta.id} className="flex items-center gap-3 py-3">
+                  <CategoryIcon iconName={cuenta.iconName} colorHex={cuenta.colorHex} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{cuenta.name}</p>
+                    {tarjeta ? (
+                      <p className="text-xs opacity-50">
+                        Deuda
+                        {!cuenta.includeInTotal && " · no cuenta en el total"}
+                      </p>
+                    ) : (
+                      !cuenta.includeInTotal && (
+                        <p className="text-xs opacity-50">No cuenta en el total</p>
+                      )
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p
+                      className={cn(
+                        "text-sm font-semibold tabular-nums",
+                        (tarjeta ? importe > 0 : importe < 0) && "text-expense",
+                      )}
+                    >
+                      {formatMoney(importe, currency)}
+                    </p>
+                    {hasActiveBuffer(cuenta) && (
+                      <p
+                        className={cn(
+                          "text-xs tabular-nums",
+                          availableBalance(cuenta) < 0 ? "text-expense" : "opacity-50",
+                        )}
+                      >
+                        {formatMoney(availableBalance(cuenta), currency)} disp.
+                      </p>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
@@ -186,10 +274,13 @@ export function TransactionRow({
   transaction,
   categories,
   currency,
+  seleccion,
 }: {
   transaction: Transaction;
   categories: Category[];
   currency: string;
+  /** Si viene, la fila deja de navegar y pasa a marcarse. */
+  seleccion?: { marcada: boolean; alAlternar: () => void };
 }) {
   const categoria = categories.find((c) => c.id === transaction.categoryId);
   const esTransferencia = transaction.type === "TRANSFER";
@@ -207,11 +298,21 @@ export function TransactionRow({
       : "Transferencia recibida"
     : (categoria?.name ?? "Sin categoría");
 
-  return (
-    <Link
-      to={`/transacciones/${transaction.id}`}
-      className="flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5"
-    >
+  const contenido = (
+    <>
+      {seleccion && (
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-5 shrink-0 place-items-center rounded-md border",
+            seleccion.marcada
+              ? "border-primary bg-primary text-white"
+              : "border-black/25 dark:border-white/35",
+          )}
+        >
+          {seleccion.marcada && <Check className="size-3.5" />}
+        </span>
+      )}
       <span
         className="grid size-10 shrink-0 place-items-center rounded-full"
         style={{ backgroundColor: `${colorHex}33`, color: colorHex }}
@@ -231,6 +332,31 @@ export function TransactionRow({
         type={transaction.type}
         className="shrink-0 text-sm font-semibold"
       />
+    </>
+  );
+
+  const estilo =
+    "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5";
+
+  // En modo selección la fila marca en vez de navegar: entrar en el detalle
+  // por error mientras se eligen varias sería justo lo contrario de lo que se
+  // está intentando hacer.
+  if (seleccion) {
+    return (
+      <button
+        type="button"
+        onClick={seleccion.alAlternar}
+        aria-pressed={seleccion.marcada}
+        className={cn(estilo, seleccion.marcada && "bg-primary/8 dark:bg-primary/15")}
+      >
+        {contenido}
+      </button>
+    );
+  }
+
+  return (
+    <Link to={`/transacciones/${transaction.id}`} className={estilo}>
+      {contenido}
     </Link>
   );
 }

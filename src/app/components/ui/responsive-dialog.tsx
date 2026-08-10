@@ -117,6 +117,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Eliminar",
+  destructivo = true,
   onConfirm,
 }: {
   open: boolean;
@@ -124,6 +125,12 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel?: string;
+  /**
+   * Pinta el botón de rojo. Por defecto sí, que es el caso original (borrar).
+   * Se apaga para confirmaciones que no destruyen nada —marcar un recibo como
+   * pagado, por ejemplo—: el rojo ahí dice «cuidado» sin motivo.
+   */
+  destructivo?: boolean;
   onConfirm: () => void;
 }) {
   return (
@@ -147,7 +154,10 @@ export function ConfirmDialog({
               onConfirm();
               onOpenChange(false);
             }}
-            className="h-11 flex-1 rounded-xl bg-expense text-sm font-medium text-white"
+            className={cn(
+              "h-11 flex-1 rounded-xl text-sm font-medium text-white",
+              destructivo ? "bg-expense" : "bg-primary",
+            )}
           >
             {confirmLabel}
           </button>

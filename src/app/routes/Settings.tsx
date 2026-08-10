@@ -3,6 +3,7 @@ import {
   ChevronRight,
   LogOut,
   Moon,
+  Repeat,
   Sun,
   SunMoon,
   Tag,
@@ -114,6 +115,9 @@ export function SettingsScreen() {
         <Card className="divide-y divide-black/5 p-0 dark:divide-white/10">
           <EnlaceAjuste to="/cuentas" icon={Wallet} label="Cuentas" />
           <EnlaceAjuste to="/categorias" icon={Tag} label="Categorías" />
+          {/* En móvil la barra inferior está llena, así que el acceso a gastos
+              fijos entra por aquí, igual que cuentas y categorías. */}
+          <EnlaceAjuste to="/gastos-fijos" icon={Repeat} label="Gastos fijos" />
           <EnlaceAjuste
             to="/calendario"
             icon={CalendarDays}
