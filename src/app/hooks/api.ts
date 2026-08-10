@@ -182,6 +182,15 @@ export function useDeleteAccount() {
   });
 }
 
+/** Duplica varias transacciones a una fecha. Nunca toca las originales. */
+export function useDuplicateTransactions() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<{ ids: string[] }, Error, { ids: string[]; date: number }>({
+    mutationKey: MUTACIONES.duplicarTransacciones,
+    onSuccess: invalidar,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Gastos fijos
 // ---------------------------------------------------------------------------

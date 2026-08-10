@@ -1,6 +1,6 @@
-import { Receipt, Search, Trash2 } from "lucide-react";
+import { Copy, Receipt, Search, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { dateInputToMillis, millisToDateInput } from "@/lib/dates.ts";
 import { parseAmountInput } from "@/lib/money.ts";
@@ -16,6 +16,7 @@ import {
   useBudgets,
   useCategories,
   useDeleteTransaction,
+  useDuplicateTransactions,
   useSaveTransaction,
   useTransaction,
   useTransactions,
@@ -44,6 +45,43 @@ export function TransactionsScreen() {
     accountId: accountId || undefined,
   });
 
+  // Selección múltiple para duplicar en bloque. Se activa con un botón de la
+  // cabecera en vez de con un gesto: la app no usa deslizar en ninguna otra
+  // pantalla, y hacerlo aquí sería un patrón nuevo solo para esto.
+  const { timeZone } = useMonth();
+  const ahora = useNow();
+  const [seleccionando, setSeleccionando] = useState(false);
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  const [fechaDuplicado, setFechaDuplicado] = useState(() =>
+    millisToDateInput(ahora, timeZone),
+  );
+  const [errorDuplicado, setErrorDuplicado] = useState<string>();
+  const duplicar = useDuplicateTransactions();
+
+  const alternar = (id: string) =>
+    setSeleccionadas((previas) => {
+      const siguiente = new Set(previas);
+      if (siguiente.has(id)) siguiente.delete(id);
+      else siguiente.add(id);
+      return siguiente;
+    });
+
+  async function duplicarSeleccionadas() {
+    setErrorDuplicado(undefined);
+    try {
+      await duplicar.mutateAsync({
+        ids: [...seleccionadas],
+        date: dateInputToMillis(fechaDuplicado, timeZone),
+      });
+      setSeleccionando(false);
+      setSeleccionadas(new Set());
+    } catch (error) {
+      setErrorDuplicado(
+        error instanceof ApiRequestError ? error.message : "No se pudo duplicar",
+      );
+    }
+  }
+
   // La búsqueda se aplica en el cliente: son las transacciones de un mes, ya
   // descargadas, así que filtrar aquí es instantáneo y no gasta una consulta.
   const termino = normalizar(busqueda);
@@ -59,7 +97,21 @@ export function TransactionsScreen() {
 
   const lista = (
     <div>
-      <ScreenHeader title="Transacciones" />
+      <ScreenHeader
+        title={seleccionando ? `${seleccionadas.size} seleccionadas` : "Transacciones"}
+        action={
+          <button
+            type="button"
+            onClick={() => {
+              setSeleccionando((s) => !s);
+              setSeleccionadas(new Set());
+            }}
+            className="min-h-11 rounded-xl px-3 text-sm font-medium text-primary hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {seleccionando ? "Cancelar" : "Seleccionar"}
+          </button>
+        }
+      />
 
       <div className="space-y-3 p-4">
         <MonthSelector
@@ -126,6 +178,14 @@ export function TransactionsScreen() {
                 transaction={tx}
                 categories={categorias.data ?? []}
                 currency={currency}
+                seleccion={
+                  seleccionando
+                    ? {
+                        marcada: seleccionadas.has(tx.id),
+                        alAlternar: () => alternar(tx.id),
+                      }
+                    : undefined
+                }
               />
             ))}
           </Card>
@@ -136,6 +196,41 @@ export function TransactionsScreen() {
           {visibles.length === 1 ? "" : "s"} · {year}-{String(month).padStart(2, "0")}
         </p>
       </div>
+
+      {/* Barra de acciones del modo selección. Va fija abajo para alcanzarla
+          con el pulgar, y reserva sitio sobre la barra de navegación. */}
+      {seleccionando && seleccionadas.size > 0 && (
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-40 border-t border-black/8 p-3 backdrop-blur",
+            "bg-surface-light/95 dark:border-white/10 dark:bg-neutral-900/95",
+            "pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3",
+          )}
+        >
+          <div className="mx-auto flex max-w-lg items-end gap-2">
+            <TextField
+              label="Duplicar a la fecha"
+              type="date"
+              value={fechaDuplicado}
+              onChange={(e) => setFechaDuplicado(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              size="lg"
+              onClick={() => void duplicarSeleccionadas()}
+              disabled={duplicar.isPending}
+            >
+              <Copy />
+              {duplicar.isPending ? "Duplicando…" : "Duplicar"}
+            </Button>
+          </div>
+          {errorDuplicado && (
+            <p role="alert" className="mt-2 text-center text-xs text-expense">
+              {errorDuplicado}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -224,10 +319,16 @@ export function TransactionFormScreen() {
 
   const { timeZone } = useMonth();
   const ahora = useNow();
-  const existente = useTransaction(editando ? id : null);
+  // `?duplicar=<id>` prellena el alta con los datos de otra transacción. NO
+  // crea nada: el usuario confirma o ajusta antes de guardar, y lo que se
+  // guarda es una transacción nueva. La original no se toca nunca.
+  const [params] = useSearchParams();
+  const idPlantilla = editando ? null : params.get("duplicar");
+
+  const existente = useTransaction(editando ? id : idPlantilla);
   const cuentas = useAccounts();
 
-  if (cuentas.isPending || (editando && existente.isPending)) {
+  if (cuentas.isPending || ((editando || idPlantilla !== null) && existente.isPending)) {
     return (
       <div>
         <ScreenHeader
@@ -245,17 +346,30 @@ export function TransactionFormScreen() {
   }
 
   const tx = existente.data;
+  const duplicando = idPlantilla !== null && tx !== undefined;
+
   const inicial: ValoresIniciales = tx
     ? {
         type: tx.type,
         amount: String(tx.amount),
-        accountId: tx.accountId,
-        transferAccountId: tx.transferAccountId ?? "",
+        // Al duplicar una transferencia se parte SIEMPRE de la pata saliente:
+        // así el formulario enseña origen y destino en el orden natural aunque
+        // se haya duplicado desde la entrante.
+        accountId:
+          duplicando && tx.type === "TRANSFER" && !tx.isOutgoing
+            ? (tx.transferAccountId ?? "")
+            : tx.accountId,
+        transferAccountId:
+          duplicando && tx.type === "TRANSFER" && !tx.isOutgoing
+            ? tx.accountId
+            : (tx.transferAccountId ?? ""),
         categoryId: tx.categoryId ?? "",
         note: tx.note,
-        date: millisToDateInput(tx.date, timeZone),
+        // La copia arranca con la fecha de HOY, que es para lo que se duplica.
+        date: millisToDateInput(duplicando ? ahora : tx.date, timeZone),
         budgetIds: tx.budgetIds,
-        transferGroupId: tx.transferGroupId,
+        // Sin grupo: si es una transferencia, al guardar se creará un par nuevo.
+        transferGroupId: duplicando ? null : tx.transferGroupId,
       }
     : {
         type: "EXPENSE",
@@ -271,7 +385,13 @@ export function TransactionFormScreen() {
       };
 
   return (
-    <TransactionForm key={id ?? "nueva"} id={id} inicial={inicial} timeZone={timeZone} />
+    <TransactionForm
+      key={id ?? idPlantilla ?? "nueva"}
+      id={id}
+      inicial={inicial}
+      timeZone={timeZone}
+      duplicando={duplicando}
+    />
   );
 }
 
@@ -284,10 +404,13 @@ function TransactionForm({
   id,
   inicial,
   timeZone,
+  duplicando = false,
 }: {
   id: string | undefined;
   inicial: ValoresIniciales;
   timeZone: string;
+  /** Se está creando a partir de otra: la cabecera lo dice. */
+  duplicando?: boolean;
 }) {
   const navigate = useNavigate();
   const editando = id !== undefined;
@@ -363,21 +486,48 @@ function TransactionForm({
   return (
     <div>
       <ScreenHeader
-        title={editando ? "Editar transacción" : "Nueva transacción"}
+        title={
+          editando
+            ? "Editar transacción"
+            : duplicando
+              ? "Duplicar transacción"
+              : "Nueva transacción"
+        }
         onBack={() => void navigate("/transacciones")}
         action={
           editando ? (
-            <button
-              type="button"
-              onClick={() => setConfirmarBorrado(true)}
-              aria-label="Eliminar"
-              className="grid size-11 place-items-center rounded-xl text-expense hover:bg-expense/10"
-            >
-              <Trash2 className="size-5" />
-            </button>
+            <div className="flex items-center">
+              {/* Mismo patrón que el resto de la app: acciones como iconos en la
+                  cabecera del detalle. Así se alcanza igual con el dedo, sin
+                  depender del hover. */}
+              <button
+                type="button"
+                onClick={() => void navigate(`/transacciones/nueva?duplicar=${id}`)}
+                aria-label="Duplicar"
+                title="Duplicar"
+                className="grid size-11 place-items-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                <Copy className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmarBorrado(true)}
+                aria-label="Eliminar"
+                className="grid size-11 place-items-center rounded-xl text-expense hover:bg-expense/10"
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </div>
           ) : null
         }
       />
+
+      {duplicando && (
+        <p className="mx-4 mt-4 rounded-xl bg-primary-light px-3 py-2 text-xs text-primary-dark dark:bg-primary/15 dark:text-primary-light">
+          Es una copia con la fecha de hoy. Ajusta lo que quieras y guarda: la transacción
+          original no se toca.
+        </p>
+      )}
 
       <form onSubmit={(e) => void alEnviar(e)} className="space-y-5 p-4">
         {errores.general && (

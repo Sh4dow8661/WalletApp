@@ -489,6 +489,138 @@ app.delete("/:id", async (c) => {
   return c.json({ id });
 });
 
+/**
+ * Duplica varias transacciones a una fecha.
+ *
+ * Reglas que no son obvias:
+ *
+ * 1. **Nunca se toca la original.** Todo son filas nuevas con ids nuevos.
+ * 2. **Una transferencia se duplica como PAR completo**, con un
+ *    `transferGroupId` nuevo. Duplicar una pata suelta dejaría las cuentas
+ *    descuadradas, que es justo el bug de §8.2.
+ * 3. **Se deduplica por grupo**: si se seleccionan las dos patas de la misma
+ *    transferencia, se duplica una vez, no dos. Sin esto, marcar "todo" en la
+ *    lista crearía el doble de transferencias.
+ * 4. Los enlaces a presupuestos se copian: duplicar es "otra igual", y el
+ *    enlace es parte de la transacción original.
+ */
+app.post("/duplicate", async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+
+  const v = new Validator(await c.req.json());
+  const ids = v.idArray("ids");
+  const date = v.timestamp("date");
+  if (ids.length === 0) v.reject("ids", "Elige al menos una transacción");
+  v.throwIfInvalid();
+
+  const originales = await withBudgetIds(
+    db,
+    userId,
+    await db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          isNull(transactions.deletedAt),
+          inArray(transactions.id, ids),
+        ),
+      ),
+  );
+
+  if (originales.length === 0) {
+    return c.json({ error: "No se encontró ninguna transacción" }, 404);
+  }
+
+  const now = Date.now();
+  const statements: Statement[] = [];
+  const creadas: string[] = [];
+  const gruposHechos = new Set<string>();
+
+  for (const original of originales) {
+    if (original.type === "TRANSFER") {
+      // Solo desde la pata saliente, que es la que conoce origen y destino.
+      // Si solo se seleccionó la entrante, se usa igualmente invirtiendo.
+      const grupo = original.transferGroupId;
+      if (grupo !== null && gruposHechos.has(grupo)) continue;
+      if (grupo !== null) gruposHechos.add(grupo);
+
+      const cuentaOrigen = original.isOutgoing
+        ? original.accountId
+        : original.transferAccountId;
+      const cuentaDestino = original.isOutgoing
+        ? original.transferAccountId
+        : original.accountId;
+
+      // Una transferencia importada de Android puede haber perdido su pareja
+      // (§8.2): sin destino no se puede reconstruir el par, así que se salta.
+      if (cuentaOrigen === null || cuentaDestino === null) continue;
+
+      const idSaliente = uuidv7(now);
+      const nuevoGrupo = uuidv7(now);
+      const base = {
+        userId,
+        amount: original.amount,
+        type: "TRANSFER" as const,
+        categoryId: null,
+        transferGroupId: nuevoGrupo,
+        note: original.note,
+        date,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      statements.push(
+        db.insert(transactions).values({
+          ...base,
+          id: idSaliente,
+          accountId: cuentaOrigen,
+          transferAccountId: cuentaDestino,
+          isOutgoing: true,
+        }),
+        db.insert(transactions).values({
+          ...base,
+          id: uuidv7(now),
+          accountId: cuentaDestino,
+          transferAccountId: cuentaOrigen,
+          isOutgoing: false,
+        }),
+      );
+      creadas.push(idSaliente);
+      continue;
+    }
+
+    const id = uuidv7(now);
+    statements.push(
+      db.insert(transactions).values({
+        id,
+        userId,
+        amount: original.amount,
+        type: original.type,
+        categoryId: original.categoryId,
+        accountId: original.accountId,
+        transferAccountId: null,
+        transferGroupId: null,
+        note: original.note,
+        date,
+        isOutgoing: false,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      ...budgetLinkStatements(db, id, original.budgetIds),
+    );
+    creadas.push(id);
+  }
+
+  if (statements.length === 0) {
+    return c.json({ error: "No hay nada que duplicar" }, 400);
+  }
+
+  await db.batch(statements as [Statement, ...Statement[]]);
+  return c.json({ ids: creadas }, 201);
+});
+
 /** Enlaces transacción → presupuesto, uno por presupuesto. */
 function budgetLinkStatements(
   db: Db,

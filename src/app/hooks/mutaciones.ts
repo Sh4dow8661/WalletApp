@@ -42,6 +42,7 @@ export const MUTACIONES = {
   guardarPresupuesto: ["presupuestos", "guardar"] as const,
   borrarPresupuesto: ["presupuestos", "borrar"] as const,
   guardarAjustes: ["ajustes", "guardar"] as const,
+  duplicarTransacciones: ["transacciones", "duplicar"] as const,
   guardarGastoFijo: ["gastos-fijos", "guardar"] as const,
   borrarGastoFijo: ["gastos-fijos", "borrar"] as const,
   pagarGastoFijo: ["gastos-fijos", "pagar"] as const,
@@ -71,6 +72,11 @@ export function registrarMutaciones(queryClient: QueryClient): void {
   queryClient.setMutationDefaults(MUTACIONES.borrarCuenta, {
     mutationFn: (id: string) => api.del<{ id: string }>(`/api/accounts/${id}`),
   });
+  queryClient.setMutationDefaults(MUTACIONES.duplicarTransacciones, {
+    mutationFn: (input: { ids: string[]; date: number }) =>
+      api.post<{ ids: string[] }>("/api/transactions/duplicate", input),
+  });
+
   queryClient.setMutationDefaults(MUTACIONES.guardarGastoFijo, {
     mutationFn: ({ id, nuevoId, ...input }: ConId<FixedExpenseInputDto>) =>
       id

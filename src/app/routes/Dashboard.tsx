@@ -1,4 +1,11 @@
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Receipt, Wallet } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Check,
+  ChevronRight,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import { Link } from "react-router";
 
 import {
@@ -267,10 +274,13 @@ export function TransactionRow({
   transaction,
   categories,
   currency,
+  seleccion,
 }: {
   transaction: Transaction;
   categories: Category[];
   currency: string;
+  /** Si viene, la fila deja de navegar y pasa a marcarse. */
+  seleccion?: { marcada: boolean; alAlternar: () => void };
 }) {
   const categoria = categories.find((c) => c.id === transaction.categoryId);
   const esTransferencia = transaction.type === "TRANSFER";
@@ -288,11 +298,21 @@ export function TransactionRow({
       : "Transferencia recibida"
     : (categoria?.name ?? "Sin categoría");
 
-  return (
-    <Link
-      to={`/transacciones/${transaction.id}`}
-      className="flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5"
-    >
+  const contenido = (
+    <>
+      {seleccion && (
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-5 shrink-0 place-items-center rounded-md border",
+            seleccion.marcada
+              ? "border-primary bg-primary text-white"
+              : "border-black/25 dark:border-white/35",
+          )}
+        >
+          {seleccion.marcada && <Check className="size-3.5" />}
+        </span>
+      )}
       <span
         className="grid size-10 shrink-0 place-items-center rounded-full"
         style={{ backgroundColor: `${colorHex}33`, color: colorHex }}
@@ -312,6 +332,31 @@ export function TransactionRow({
         type={transaction.type}
         className="shrink-0 text-sm font-semibold"
       />
+    </>
+  );
+
+  const estilo =
+    "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-black/3 dark:hover:bg-white/5";
+
+  // En modo selección la fila marca en vez de navegar: entrar en el detalle
+  // por error mientras se eligen varias sería justo lo contrario de lo que se
+  // está intentando hacer.
+  if (seleccion) {
+    return (
+      <button
+        type="button"
+        onClick={seleccion.alAlternar}
+        aria-pressed={seleccion.marcada}
+        className={cn(estilo, seleccion.marcada && "bg-primary/8 dark:bg-primary/15")}
+      >
+        {contenido}
+      </button>
+    );
+  }
+
+  return (
+    <Link to={`/transacciones/${transaction.id}`} className={estilo}>
+      {contenido}
     </Link>
   );
 }

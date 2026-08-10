@@ -882,6 +882,49 @@ gastos que ocurrieron de verdad y borrarlos descuadraría los balances.
 Un gasto inactivo sigue en la lista pero ni suma al equivalente ni avisa, y cae
 siempre al final de la ordenación.
 
+---
+
+## 15. Duplicar transacciones
+
+Dos caminos distintos a propósito:
+
+- **Una sola** → `/transacciones/nueva?duplicar=<id>`. **No crea nada**: abre el
+  alta prellenada con la fecha de hoy para que el usuario confirme o ajuste. Lo
+  que se guarda es una transacción nueva; la original no se toca nunca.
+- **Varias** → `POST /api/transactions/duplicate { ids, date }`. Aquí no hay
+  formulario que confirmar una por una, así que el trabajo lo hace el servidor
+  de una vez.
+
+### Transferencias
+
+Duplicar una pata suelta dejaría las cuentas descuadradas — exactamente el bug
+de §8.2. Por eso:
+
+1. Una transferencia se duplica como **par completo**, con un
+   `transferGroupId` **nuevo**.
+2. Se **deduplica por grupo**: si se marcan las dos patas en la lista, se
+   duplica una vez. Sin esto, seleccionar todo crearía el doble de
+   transferencias.
+3. Da igual desde qué pata se duplique: siempre se reconstruye desde la
+   saliente, así que el dinero sale de donde salía.
+4. Una transferencia huérfana importada de Android (sin pareja, §8.2) **se
+   salta**: sin destino no se puede reconstruir el par.
+
+Los enlaces a presupuestos se copian: duplicar es «otra igual», y el enlace es
+parte de la transacción original.
+
+### El patrón de la UI
+
+La petición pedía que la acción fuese alcanzable sin hover en móvil y **sin
+inventar un patrón nuevo si ya hay uno**. La app no usa deslizar en ninguna
+pantalla, así que no se ha añadido aquí:
+
+- en el detalle, un botón de icono en la cabecera, junto al de eliminar — el
+  mismo sitio donde ya viven las acciones de cuentas, categorías y presupuestos;
+- en la lista, un botón «Seleccionar» en la cabecera que activa el modo
+  selección; en ese modo las filas marcan en vez de navegar, y la acción aparece
+  en una barra fija abajo, al alcance del pulgar.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se
