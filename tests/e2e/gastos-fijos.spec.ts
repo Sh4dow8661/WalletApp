@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { limpiarCacheDeConsultas } from "./sembrar.ts";
+
 /**
  * Gastos fijos: costo mensual equivalente y pago manual.
  *
@@ -13,7 +15,7 @@ async function crearGastoFijo(
   everyMonths: number,
 ) {
   await page.goto("/");
-  return page.evaluate(
+  const id = await page.evaluate(
     async ({ nombre, amount, everyMonths }) => {
       const j = async (metodo: string, url: string, cuerpo?: unknown) => {
         const r = await fetch(url, {
@@ -51,6 +53,9 @@ async function crearGastoFijo(
     },
     { nombre, amount, everyMonths },
   );
+
+  await limpiarCacheDeConsultas(page);
+  return id;
 }
 
 test("un gasto anual enseña su costo mensual equivalente", async ({ page }) => {

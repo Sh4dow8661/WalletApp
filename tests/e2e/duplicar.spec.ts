@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { limpiarCacheDeConsultas } from "./sembrar.ts";
+
 /** Duplicar transacciones: desde el detalle y en bloque desde la lista. */
 
 /** Crea un gasto con una nota única y devuelve su id. */
@@ -9,7 +11,7 @@ async function crearGasto(
   amount: number,
 ) {
   await page.goto("/");
-  return page.evaluate(
+  const id = await page.evaluate(
     async ({ nota, amount }) => {
       const j = async (metodo: string, url: string, cuerpo?: unknown) => {
         const r = await fetch(url, {
@@ -46,6 +48,9 @@ async function crearGasto(
     },
     { nota, amount },
   );
+
+  await limpiarCacheDeConsultas(page);
+  return id;
 }
 
 test("duplicar desde el detalle abre una copia sin tocar la original", async ({

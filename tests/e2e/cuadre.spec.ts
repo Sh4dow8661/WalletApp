@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { limpiarCacheDeConsultas } from "./sembrar.ts";
+
 /**
  * Colchón por cuenta y flujo de cuadre.
  *
@@ -20,7 +22,7 @@ async function crearCuenta(
   bufferAmount: number,
 ) {
   await page.goto("/");
-  return page.evaluate(
+  const id = await page.evaluate(
     async ({ nombre, balance, bufferAmount }) => {
       const j = async (metodo: string, url: string, cuerpo?: unknown) => {
         const r = await fetch(url, {
@@ -52,6 +54,11 @@ async function crearCuenta(
     },
     { nombre, balance, bufferAmount },
   );
+
+  // Se ha creado a espaldas de la app: sin tirar la caché persistida, la lista
+  // se serviría de IndexedDB y la cuenta nueva no aparecería.
+  await limpiarCacheDeConsultas(page);
+  return id;
 }
 
 test("con colchón se enseñan las dos cifras: balance y disponible", async ({ page }) => {

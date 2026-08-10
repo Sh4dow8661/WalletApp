@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { limpiarCacheDeConsultas } from "./sembrar.ts";
+
 /**
  * Tarjetas de crédito separadas de las cuentas, con su utilización.
  *
@@ -60,6 +62,10 @@ async function sembrarTarjeta(
     },
     { nombre, limite, gasto },
   );
+
+  // Creado a espaldas de la app: sin tirar la caché persistida, la lista se
+  // serviría de IndexedDB y la tarjeta nueva no aparecería.
+  await limpiarCacheDeConsultas(page);
 }
 
 test("las tarjetas van en su propia sección, aparte de las cuentas", async ({ page }) => {
