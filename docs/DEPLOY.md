@@ -106,21 +106,22 @@ en `.dev.vars.example`.
 
 ---
 
-## Cerrar el registro
+## El registro está cerrado
 
-La URL del Worker es pública. Con `ALLOW_SIGNUP` en `"true"`, cualquiera que dé
-con ella puede crearse una cuenta. No vería tus datos —cada usuario solo ve los
-suyos, y eso lo garantiza el servidor en cada petición (§11)— pero no hay razón
-para dejarlo abierto una vez creada tu cuenta.
+`ALLOW_SIGNUP` está en `"false"`: el registro devuelve
+`400 EMAIL_PASSWORD_SIGN_UP_DISABLED` y solo se entra con las cuentas que ya
+existen. La URL del Worker es pública, así que dejarlo abierto solo servía para
+que cualquiera que diese con ella pudiera crearse una cuenta.
 
-Después de registrarte, en `wrangler.jsonc`:
+Para dar de alta a alguien más: poner `"true"` en `wrangler.jsonc`,
+`pnpm deploy`, crear la cuenta, y volver a cerrarlo.
 
-```jsonc
-"vars": { "ALLOW_SIGNUP": "false" }
-```
-
-y `pnpm deploy`. A partir de ahí el registro devuelve error y solo se entra con
-las cuentas que ya existan.
+> **Comprueba que hay al menos una cuenta antes de cerrar.** Cerrar el registro
+> sobre una base vacía deja la app inaccesible, sin forma de entrar desde fuera:
+>
+> ```bash
+> pnpm exec wrangler d1 execute walletapp-db --remote --command "SELECT email FROM user"
+> ```
 
 ---
 

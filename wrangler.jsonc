@@ -37,8 +37,11 @@
   ],
 
   "vars": {
-    // Registro público. En producción se cierra con
-    // `wrangler secret put ALLOW_SIGNUP` o cambiando esto a "false" (§11).
-    "ALLOW_SIGNUP": "true",
+    // Registro CERRADO desde el 9-ago-2026, con la cuenta del usuario ya creada
+    // (§11). La URL del Worker es pública, así que dejarlo abierto solo servía
+    // para que cualquiera que diese con ella pudiera registrarse. Para volver a
+    // abrirlo —por ejemplo, para dar de alta a alguien— se pone "true", se
+    // despliega, se crea la cuenta y se vuelve a cerrar.
+    "ALLOW_SIGNUP": "false",
   },
 }

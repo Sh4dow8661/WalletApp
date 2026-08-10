@@ -895,15 +895,20 @@ Los e2e necesitan la app levantada, así que el workflow escribe un `.dev.vars`
 con un secreto aleatorio de usar y tirar: solo firma sesiones dentro de un
 runtime que se destruye al acabar el job.
 
-### Pendiente, y depende de ti
+### Registro cerrado
 
-**`ALLOW_SIGNUP` sigue en `"true"`.** La URL es pública, así que ahora mismo
-cualquiera que dé con ella puede registrarse. No vería datos ajenos —el servidor
-filtra por la sesión en cada petición— pero no hay razón para dejarlo abierto.
+`ALLOW_SIGNUP` pasó a `"false"` el 9-ago-2026, en cuanto el usuario creó su
+cuenta. No se podía cerrar antes: la cuenta la tiene que crear él, que es quien
+elige la contraseña.
 
-No se puede cerrar antes porque **la cuenta la tiene que crear el usuario**: es
-quien elige la contraseña. El orden es: registrarse → poner `"false"` en
-`wrangler.jsonc` → `pnpm deploy`.
+Antes de tocar la variable se comprobó en la D1 de producción que la cuenta
+existía de verdad. Cerrar el registro sobre una base sin usuarios habría dejado
+la app inaccesible para todos, sin forma de entrar desde fuera.
+
+Verificado después de desplegar: un `POST /api/auth/sign-up/email` devuelve
+`400 EMAIL_PASSWORD_SIGN_UP_DISABLED`, el login sigue respondiendo (`401` con
+credenciales falsas, no un error de configuración) y la tabla `user` sigue
+teniendo exactamente una fila.
 
 **Lighthouse sigue sin poder ejecutarse en esta máquina** (`EPERM` al limpiar su
 perfil temporal). Ahora que hay una URL pública se puede medir desde PageSpeed
