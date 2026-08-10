@@ -167,9 +167,17 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
     await page.goto("/cuentas/nueva");
     await page.waitForLoadState("networkidle");
 
-    const medir = () =>
-      page.evaluate(() => {
-        const sw = document.querySelector("button[role='switch']")!;
+    const interruptor = page.locator("button[role='switch']").first();
+
+    /**
+     * Se mide sobre el locator, no con `document.querySelector`: el formulario
+     * se remonta cuando terminan de llegar las cuentas, y en un runner lento
+     * eso deja el `querySelector` en null justo después de pulsar. El locator
+     * reintenta hasta que el elemento está.
+     */
+    const medir = async () => {
+      await expect(interruptor).toBeVisible();
+      return interruptor.evaluate((sw) => {
         const bola = sw.querySelector("span")!;
         const p = sw.getBoundingClientRect();
         const b = bola.getBoundingClientRect();
@@ -180,14 +188,21 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
           abajo: +(p.bottom - b.bottom).toFixed(1),
         };
       });
-
-    const interruptor = page.locator("button[role='switch']").first();
+    };
 
     // Los dos estados: el aire del lado activo tiene que ser el mismo que el de
     // arriba y abajo, y la bola nunca puede sobresalir.
+    const estadoInicial = await interruptor.getAttribute("aria-checked");
+
     for (const paso of ["inicial", "cambiado"] as const) {
       if (paso === "cambiado") {
         await interruptor.click();
+        // Se espera al cambio real de estado, no a un tiempo fijo, y luego a
+        // que termine la transición de 200 ms del círculo.
+        await expect(interruptor).toHaveAttribute(
+          "aria-checked",
+          estadoInicial === "true" ? "false" : "true",
+        );
         await page.waitForTimeout(300);
       }
 
