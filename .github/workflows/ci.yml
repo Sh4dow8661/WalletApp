@@ -7,9 +7,12 @@ name: CI
 # repositorio, y esa decisión es del dueño de la cuenta, no de la CI. El
 # despliegue se hace a mano con `pnpm deploy` (ver docs/DEPLOY.md).
 
+# `push` se limita a `main` a propósito: con `branches: ["**"]`, cada push a una
+# rama con PR abierto disparaba el workflow dos veces (una por el push y otra por
+# el pull_request), duplicando los minutos para verificar el mismo commit.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -88,6 +91,12 @@ jobs:
             echo "BETTER_AUTH_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
             echo 'ALLOW_SIGNUP="true"'
           } > .dev.vars
+
+      # Los e2e corren contra la D1 local de Miniflare, que en un runner nuevo
+      # está vacía. Sin esto, el primer login falla con `no such table: user`.
+      # Los tests del API no lo necesitan: aplican las migraciones ellos mismos.
+      - name: Aplicar migraciones a la base local
+        run: pnpm db:migrate:local
 
       - name: Instalar Chromium
         run: pnpm exec playwright install --with-deps chromium
