@@ -151,7 +151,9 @@ export function SwitchField({
 }) {
   const id = useId();
   return (
-    <div className="flex items-center justify-between gap-4">
+    // `pr-0.5` da aire al switch respecto al borde del panel: sin él queda
+    // pegado a la barra de scroll cuando el formulario tiene que desplazarse.
+    <div className="flex items-center justify-between gap-4 pr-0.5">
       <label htmlFor={id} className="flex-1 cursor-pointer">
         <span className="block text-sm font-medium">{label}</span>
         {description && <span className="block text-xs opacity-60">{description}</span>}
@@ -168,10 +170,21 @@ export function SwitchField({
           checked ? "bg-primary" : "bg-black/20 dark:bg-white/25",
         )}
       >
+        {/*
+          Geometría explícita, y no la que salga de la posición estática:
+          pista 44×24, bola 20×20 anclada con `left-0.5 top-0.5` (2 px). Al
+          encender se desplaza 20 px, así que queda a 2 px del borde derecho —
+          el mismo aire que tiene a la izquierda cuando está apagado, y el mismo
+          que arriba y abajo.
+
+          Antes se usaba `translate-x-5.5` sin `left`, y la bola acababa fuera
+          de la pista: medido, sobresalía 20 px por la derecha en encendido.
+        */}
         <span
           className={cn(
-            "absolute top-0.5 size-5 rounded-full bg-white transition-transform",
-            checked ? "translate-x-5.5" : "translate-x-0.5",
+            "absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm",
+            "transition-transform duration-200 ease-out",
+            checked ? "translate-x-5" : "translate-x-0",
           )}
         />
       </button>

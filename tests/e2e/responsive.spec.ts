@@ -107,6 +107,117 @@ test.describe("adaptación a cada dispositivo (§10)", () => {
   });
 
   /**
+   * Regresión: la barra lateral no llevaba `overflow`, así que en cuanto la
+   * lista no cabía —ventana baja, o el rail estrecho, donde cada ítem ocupa el
+   * doble por llevar el texto bajo el icono— los últimos elementos quedaban
+   * recortados y no había forma de llegar a ellos.
+   */
+  test("se puede llegar al último ítem del menú aunque no quepa", async ({ page }) => {
+    // El rail estrecho con la ventana baja es el caso que se rompía.
+    for (const [width, height] of [
+      [900, 560],
+      [1280, 560],
+      [1280, 720],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      const medida = await page.evaluate(() => {
+        const nav = document.querySelector("nav[aria-label='Navegación principal']");
+        const lista = nav!.querySelector("[data-menu-secciones]")!;
+        const ultimo = [...nav!.querySelectorAll("a")].at(-1)!;
+        const atajos = nav!.querySelector("button")!;
+
+        const dentro = (el: Element, caja: Element) => {
+          const b = el.getBoundingClientRect();
+          const c = caja.getBoundingClientRect();
+          return b.bottom <= c.bottom + 1 && b.top >= c.top - 1;
+        };
+
+        // Se baja del todo: el último ítem tiene que quedar a la vista.
+        lista.scrollTop = lista.scrollHeight;
+        const ultimoAlcanzable = dentro(ultimo, lista);
+
+        return {
+          ultimoAlcanzable,
+          // El botón de Atajos vive fuera del área con scroll: siempre visible.
+          atajosVisible: dentro(atajos, nav!),
+          // La barra de scroll no debe salir si no hace falta.
+          sobra: lista.scrollHeight > lista.clientHeight + 1,
+          desbordaLaVentana: nav!.getBoundingClientRect().bottom > window.innerHeight + 1,
+        };
+      });
+
+      const donde = `${width}x${height}`;
+      expect(medida.ultimoAlcanzable, `${donde}: no se llega al último ítem`).toBe(true);
+      expect(medida.atajosVisible, `${donde}: "Atajos" queda fuera`).toBe(true);
+      expect(medida.desbordaLaVentana, `${donde}: la barra desborda`).toBe(false);
+    }
+  });
+
+  /**
+   * Regresión: el círculo del switch se salía de su pista. Iba con
+   * `translate-x-5.5` y sin `left`, así que su posición dependía de dónde lo
+   * dejara el flujo estático — medido, sobresalía 20 px por la derecha estando
+   * encendido.
+   */
+  test("el círculo del switch no se sale de su pista", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/cuentas/nueva");
+    await page.waitForLoadState("networkidle");
+
+    const interruptor = page.locator("button[role='switch']").first();
+
+    /**
+     * Se mide sobre el locator, no con `document.querySelector`: el formulario
+     * se remonta cuando terminan de llegar las cuentas, y en un runner lento
+     * eso deja el `querySelector` en null justo después de pulsar. El locator
+     * reintenta hasta que el elemento está.
+     */
+    const medir = async () => {
+      await expect(interruptor).toBeVisible();
+      return interruptor.evaluate((sw) => {
+        const bola = sw.querySelector("span")!;
+        const p = sw.getBoundingClientRect();
+        const b = bola.getBoundingClientRect();
+        return {
+          izq: +(b.left - p.left).toFixed(1),
+          der: +(p.right - b.right).toFixed(1),
+          arriba: +(b.top - p.top).toFixed(1),
+          abajo: +(p.bottom - b.bottom).toFixed(1),
+        };
+      });
+    };
+
+    // Los dos estados: el aire del lado activo tiene que ser el mismo que el de
+    // arriba y abajo, y la bola nunca puede sobresalir.
+    const estadoInicial = await interruptor.getAttribute("aria-checked");
+
+    for (const paso of ["inicial", "cambiado"] as const) {
+      if (paso === "cambiado") {
+        await interruptor.click();
+        // Se espera al cambio real de estado, no a un tiempo fijo, y luego a
+        // que termine la transición de 200 ms del círculo.
+        await expect(interruptor).toHaveAttribute(
+          "aria-checked",
+          estadoInicial === "true" ? "false" : "true",
+        );
+        await page.waitForTimeout(300);
+      }
+
+      const m = await medir();
+      expect(m.izq, `${paso}: se sale por la izquierda`).toBeGreaterThanOrEqual(0);
+      expect(m.der, `${paso}: se sale por la derecha`).toBeGreaterThanOrEqual(0);
+      expect(Math.min(m.izq, m.der), `${paso}: sin aire en el lado activo`).toBeCloseTo(
+        m.arriba,
+        1,
+      );
+      expect(m.arriba, `${paso}: descentrado en vertical`).toBeCloseTo(m.abajo, 1);
+    }
+  });
+
+  /**
    * Regresión: entre 768 y 1279 px la cabecera colgaba de `esEscritorio`, así
    * que no quedaba ningún botón para crear una transacción — solo el atajo `n`.
    * Y ese tramo se pisa sin ser una tablet: un monitor de 1920 con el escalado

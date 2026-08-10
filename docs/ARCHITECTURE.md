@@ -984,6 +984,46 @@ y las que no encuentran pareja **se importan igual** —el dinero estuvo ahí—
 cuentan aparte en `transferenciasHuerfanas` del resumen, para poder revisarlas.
 Al duplicar, una pata huérfana se salta: sin destino no hay par que reconstruir.
 
+---
+
+## 17. Barra lateral con scroll y geometría del switch
+
+Dos arreglos de UI en escritorio, ambos **medidos en el navegador antes y
+después** con `scripts/diagnostico-ui.mjs`.
+
+### La barra lateral se recortaba
+
+El `<nav>` era una sola columna sin `overflow`, así que cuando la lista no cabía
+los últimos elementos quedaban cortados y no había forma de llegar a ellos.
+
+Dónde ocurría de verdad: **no en escritorio, sino en el rail estrecho**, donde
+cada ítem ocupa el doble por llevar el texto debajo del icono. Medido a 900×560:
+`scrollHeight` 672 contra `clientHeight` 560 — «Ajustes» y el botón de «Atajos»
+quedaban fuera. En la barra ancha sí cabía todo, incluso con la ventana baja.
+Con el zoom del navegador subido se cae en el rail estrecho, que es como se topa
+uno con esto sin tener una tablet.
+
+Ahora son **tres zonas**: logo fijo arriba, lista con `overflow-y-auto` en medio
+y «Atajos» fijo abajo. La clave es el **`min-h-0`** del contenedor central:
+dentro de un flex column, un hijo `flex-1` tiene `min-height: auto` y se niega a
+encoger por debajo de su contenido, así que sin eso el `overflow` no se activa
+nunca.
+
+La barra de scroll solo aparece cuando hace falta (`auto`, no `scroll`).
+
+### El círculo del switch se salía de la pista
+
+Iba con `translate-x-5.5` y **sin `left`**, así que su posición dependía de dónde
+lo dejara el flujo estático. Medido: estando encendido sobresalía **20 px por la
+derecha** de una pista de 44 px.
+
+Ahora la geometría es explícita: pista 44×24, bola 20×20 anclada con `left-0.5
+top-0.5` y `translate-x-5` al encender. Resultado medido: 2 px de aire por los
+cuatro lados en los dos estados.
+
+Se arregló en `SwitchField`, así que vale para todos los interruptores de la app,
+no solo para el que se vio.
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se
