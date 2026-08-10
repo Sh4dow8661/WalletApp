@@ -758,6 +758,73 @@ las mismas dos reglas que el API, pero un archivo viejo o tocado a mano **no
 invalida la importación entera**: esa cuenta entra sin límite, que es un estado
 válido. Un CSV no trae tipos de cuenta, así que de ahí nunca salen tarjetas.
 
+---
+
+## 13. Colchón por cuenta y cuadre
+
+### Colchón (migración 0003)
+
+Un **colchón** es el mínimo que no se quiere tocar. El dinero sigue en la cuenta
+—el balance no cambia— pero deja de contar como disponible:
+
+    disponible = balance − colchón
+
+Tres campos nuevos, todos con valor por defecto para que las cuentas que ya
+existían se comporten **exactamente igual que antes**: `buffer_amount` (REAL,
+0, con `CHECK >= 0`), `buffer_applied` (INTEGER, 1) y `last_reconciled_at`
+(INTEGER, nullable). Con colchón 0 la UI no enseña ni una palabra de más.
+
+`buffer_applied` sirve para dos cosas a la vez: si se apaga, el importe se
+conserva pero no se descuenta; y es el valor que la pantalla de cuadre propone
+marcado o desmarcado, que es lo que se pidió — que la elección se recuerde.
+
+Cuando hay colchón, la UI enseña **siempre las dos cifras**. Solo el disponible
+escondería dinero que existe de verdad; solo el balance es justo lo que hace
+creer que hay más de lo que se puede gastar.
+
+**El disponible puede salir negativo y se muestra tal cual, en rojo.** Recortarlo
+a 0 ocultaría que se está por debajo del propio mínimo, que es justo lo que hay
+que ver.
+
+En una **tarjeta** el colchón no significa nada: no hay saldo del que apartar
+una parte, sino deuda. Ni se aplica ni se ofrece, y el API lo rechaza.
+
+### Cuadre — y en qué se diferencia de §8.3
+
+**Ya existía un mecanismo parecido y no se ha duplicado**: editar el «balance
+actual» de una cuenta (§8.3) despeja el balance inicial para que cuadre. La
+diferencia es de fondo:
+
+|                   | Editar balance actual (§8.3)                     | Cuadrar (nuevo)                  |
+| ----------------- | ------------------------------------------------ | -------------------------------- |
+| Qué toca          | El balance **inicial**                           | Crea una **transacción**         |
+| Rastro            | Ninguno                                          | Un movimiento con fecha y nota   |
+| Se puede deshacer | No                                               | Sí, borrando la transacción      |
+| Para qué sirve    | Corregir el punto de partida de una cuenta nueva | Cuadre periódico contra el banco |
+
+Los dos se quedan, porque resuelven cosas distintas. Para un cuadre que se
+repite cada mes se quiere el rastro; para arreglar el saldo inicial de una
+cuenta recién creada, no.
+
+El endpoint es `POST /api/accounts/:id/reconcile`. El balance calculado **se lee
+en la misma petición**, no se acepta del cliente: si no, se podría cuadrar
+contra una cifra ya caducada.
+
+Decisiones que conviene no deshacer:
+
+- **Umbral de medio céntimo.** Los balances son `REAL`; sin umbral, cuadrar una
+  cuenta ya cuadrada crearía un ajuste de 4e−17. Si la diferencia queda por
+  debajo, no se crea nada y solo se apunta la fecha.
+- **El importe se redondea a céntimos.** El ajuste acaba en el historial del
+  usuario, y `200 − 154.1` da `45.900000000000006`. El saldo puede quedar a
+  menos de medio céntimo del real, que está por debajo del umbral y por tanto
+  no se acumula.
+- **Categoría del ajuste**: «Otros» del tipo que toque (INCOME o EXPENSE), que
+  existe en toda cuenta sembrada. Si el usuario la borró, el ajuste va sin
+  categoría antes que fallar el cuadre entero.
+- El `adjustmentId` lo genera el cliente, así que reenviar un cuadre pendiente
+  desde la cola offline no crea dos ajustes (§9).
+
 ### La cola offline usa TanStack Query, no una implementación propia
 
 Con `networkMode: "offlineFirst"`, una mutación sin red queda **pausada**, se

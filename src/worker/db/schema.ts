@@ -63,6 +63,15 @@ export const walletAccounts = sqliteTable(
      * (no cabe en un CHECK de columna, ver la migración 0002).
      */
     creditLimit: real("credit_limit"),
+    /**
+     * Mínimo que no se quiere gastar. El balance no cambia; lo que baja es el
+     * disponible (`balance − colchón`). Ver `lib/colchon.ts`.
+     */
+    bufferAmount: real("buffer_amount").notNull().default(0),
+    /** Si se apaga, el importe se conserva pero no se descuenta. */
+    bufferApplied: integer("buffer_applied", { mode: "boolean" }).notNull().default(true),
+    /** Última vez que se cuadró contra el saldo real. Null = nunca. */
+    lastReconciledAt: integer("last_reconciled_at"),
     colorHex: text("color_hex").notNull(),
     iconName: text("icon_name").$type<IconName>().notNull(),
     /** Si es false, la cuenta no suma al balance total del dashboard (§8.1). */

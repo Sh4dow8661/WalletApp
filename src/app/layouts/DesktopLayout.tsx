@@ -13,11 +13,12 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 
+import { summarizeAvailability } from "@/lib/colchon.ts";
 import { formatMoney } from "@/lib/money.ts";
 
 import { Button } from "../components/ui/button.tsx";
 import { ResponsiveDialog } from "../components/ui/responsive-dialog.tsx";
-import { useDashboard } from "../hooks/api.ts";
+import { useAccounts, useDashboard } from "../hooks/api.ts";
 import { useBreakpoint } from "../hooks/use-breakpoint.ts";
 import { type Shortcut, useShortcuts } from "../hooks/use-shortcuts.ts";
 import { useMonth } from "../hooks/use-month.tsx";
@@ -52,6 +53,8 @@ export function DesktopLayout() {
   const esEscritorio = breakpoint === "desktop";
   const { year, month, label, currency, previous, next } = useMonth();
   const resumen = useDashboard(year, month);
+  const cuentas = useAccounts();
+  const disponibilidad = summarizeAvailability(cuentas.data ?? []);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   const atajos: Shortcut[] = [
@@ -162,9 +165,18 @@ export function DesktopLayout() {
         {esEscritorio && (
           <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-black/8 bg-surface-light/95 px-6 py-3 backdrop-blur dark:border-white/10 dark:bg-neutral-900/95">
             <div className="min-w-0">
-              <p className="text-xs opacity-60">Balance total</p>
+              {/* Con colchones se enseña el disponible, igual que el dashboard:
+                  las dos cabeceras no pueden decir cifras distintas. */}
+              <p className="text-xs opacity-60">
+                {disponibilidad.hasAnyBuffer ? "Disponible real" : "Balance total"}
+              </p>
               <p className="text-xl font-bold tabular-nums">
-                {formatMoney(resumen.data?.totalBalance ?? 0, currency)}
+                {formatMoney(
+                  disponibilidad.hasAnyBuffer
+                    ? disponibilidad.available
+                    : (resumen.data?.totalBalance ?? 0),
+                  currency,
+                )}
               </p>
             </div>
 

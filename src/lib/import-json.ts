@@ -180,6 +180,9 @@ export interface DatosImportados {
     initialBalance: number;
     /** Solo en tarjetas. Los respaldos anteriores a 0002 no lo traen. */
     creditLimit: number | null;
+    /** Los respaldos anteriores a 0003 no lo traen: entra como 0. */
+    bufferAmount: number;
+    bufferApplied: boolean;
     colorHex: string;
     iconName: IconName;
     includeInTotal: boolean;
@@ -284,6 +287,11 @@ export function transformarExport(
         // manipulado no puede meter un límite en una cuenta de efectivo, que
         // es justo lo que el API rechaza.
         creditLimit: limiteCredito(fila, type),
+        // Igual que el límite: en una tarjeta el colchón no aplica, y uno
+        // negativo se ignora en vez de tumbar la importación entera.
+        bufferAmount:
+          type === "CREDIT_CARD" ? 0 : Math.max(0, numero(fila, "bufferAmount")),
+        bufferApplied: booleano(fila, "bufferApplied", true),
         colorHex: color(texto(fila, "colorHex"), CATEGORY_PALETTE[8]),
         iconName: unaDe(texto(fila, "iconName"), ICON_NAMES, DEFAULT_ACCOUNT_ICON[type]),
         includeInTotal: booleano(fila, "includeInTotal", true),

@@ -4,6 +4,8 @@ import type {
   AccountInput,
   BudgetInput,
   CategoryInput,
+  ReconcileInput,
+  ReconcileResult,
   TransactionInput,
   UserSettingsInput,
 } from "@/shared/types.ts";
@@ -30,6 +32,7 @@ import { api } from "../lib/api.ts";
 export const MUTACIONES = {
   guardarCuenta: ["cuentas", "guardar"] as const,
   borrarCuenta: ["cuentas", "borrar"] as const,
+  cuadrarCuenta: ["cuentas", "cuadrar"] as const,
   guardarCategoria: ["categorias", "guardar"] as const,
   borrarCategoria: ["categorias", "borrar"] as const,
   guardarTransaccion: ["transacciones", "guardar"] as const,
@@ -62,6 +65,12 @@ export function registrarMutaciones(queryClient: QueryClient): void {
   });
   queryClient.setMutationDefaults(MUTACIONES.borrarCuenta, {
     mutationFn: (id: string) => api.del<{ id: string }>(`/api/accounts/${id}`),
+  });
+  queryClient.setMutationDefaults(MUTACIONES.cuadrarCuenta, {
+    // `adjustmentId` lo genera el cliente, así que reenviar un cuadre pendiente
+    // desde la cola offline no crea dos ajustes (§9).
+    mutationFn: ({ id, ...input }: ReconcileInput & { id: string }) =>
+      api.post<ReconcileResult>(`/api/accounts/${id}/reconcile`, input),
   });
 
   queryClient.setMutationDefaults(MUTACIONES.guardarCategoria, {

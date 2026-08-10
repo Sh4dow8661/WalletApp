@@ -13,6 +13,7 @@ import { BudgetFormScreen, BudgetsScreen } from "./routes/Budgets.tsx";
 import { CalendarScreen } from "./routes/Calendar.tsx";
 import { CategoriesScreen, CategoryFormScreen } from "./routes/Categories.tsx";
 import { DashboardScreen } from "./routes/Dashboard.tsx";
+import { ReconcileScreen } from "./routes/Reconcile.tsx";
 import { SettingsScreen } from "./routes/Settings.tsx";
 import { StatisticsScreen } from "./routes/Statistics.tsx";
 import { TransactionFormScreen, TransactionsScreen } from "./routes/Transactions.tsx";
@@ -130,6 +131,9 @@ export function AppRouter() {
 
           <Route path="cuentas" element={<AccountsScreen />}>
             <Route path="nueva" element={<AccountFormScreen />} />
+            {/* Antes que `:id`: un segmento más lo hace más específico, así que
+                `/cuentas/xxx/cuadrar` no cae en el formulario de edición. */}
+            <Route path=":id/cuadrar" element={<ReconcileScreen />} />
             <Route path=":id" element={<AccountFormScreen />} />
           </Route>
 

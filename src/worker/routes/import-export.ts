@@ -231,6 +231,8 @@ export function transformarCsv(rows: readonly CsvRow[], ahora: number): DatosImp
     // Un CSV no trae tipos de cuenta: todo entra como efectivo, así que aquí
     // nunca hay tarjetas y por tanto tampoco límite.
     creditLimit: null,
+    bufferAmount: 0,
+    bufferApplied: true,
     colorHex: CATEGORY_PALETTE[8],
     iconName: DEFAULT_ACCOUNT_ICON.CASH,
     includeInTotal: true,
@@ -388,6 +390,8 @@ app.get("/json", async (c) => {
       // Se exporta aunque sea null: sin él, reimportar un respaldo dejaría las
       // tarjetas sin límite y sin porcentaje de utilización.
       creditLimit: a.creditLimit,
+      bufferAmount: a.bufferAmount,
+      bufferApplied: a.bufferApplied,
       colorHex: a.colorHex,
       iconName: a.iconName,
       includeInTotal: a.includeInTotal,

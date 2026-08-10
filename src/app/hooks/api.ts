@@ -11,6 +11,8 @@ import type {
   DailySpend,
   DashboardSummary,
   MonthlyTrendPoint,
+  ReconcileInput,
+  ReconcileResult,
   Transaction,
   TransactionInput,
   UserSettings,
@@ -171,6 +173,15 @@ export function useDeleteAccount() {
   const invalidar = useInvalidarDatos();
   return useMutation<{ id: string }, Error, string>({
     mutationKey: MUTACIONES.borrarCuenta,
+    onSuccess: invalidar,
+  });
+}
+
+/** Cuadre contra el saldo real: crea la transacción de ajuste (§8.3 bis). */
+export function useReconcileAccount() {
+  const invalidar = useInvalidarDatos();
+  return useMutation<ReconcileResult, Error, ReconcileInput & { id: string }>({
+    mutationKey: MUTACIONES.cuadrarCuenta,
     onSuccess: invalidar,
   });
 }

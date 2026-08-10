@@ -34,6 +34,12 @@ export interface Account {
    * (ver `lib/credit.ts`).
    */
   creditLimit: number | null;
+  /** Mínimo que no se quiere gastar. 0 = sin colchón (ver `lib/colchon.ts`). */
+  bufferAmount: number;
+  /** Si es false, el colchón se guarda pero no se descuenta. */
+  bufferApplied: boolean;
+  /** Última vez que se cuadró contra el saldo real. Null = nunca. */
+  lastReconciledAt: number | null;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
@@ -56,9 +62,31 @@ export interface AccountInput {
    * servidor lo rechaza; manda `null` para quitarlo.
    */
   creditLimit?: number | null;
+  /** No puede ser negativo. Se ignora en las tarjetas. */
+  bufferAmount?: number;
+  bufferApplied?: boolean;
   colorHex: string;
   iconName: IconName;
   includeInTotal: boolean;
+}
+
+/** Cuadre de una cuenta contra el saldo real. */
+export interface ReconcileInput {
+  /** El saldo que la cuenta tiene de verdad, el que se ve en el banco. */
+  realBalance: number;
+  /** Si el colchón se descuenta. Se guarda como default de la cuenta. */
+  applyBuffer: boolean;
+  /** Id de la transacción de ajuste, generado por el cliente (§9). */
+  adjustmentId?: string;
+}
+
+export interface ReconcileResult {
+  calculated: number;
+  real: number;
+  difference: number;
+  /** Null cuando ya cuadraba: no se creó ninguna transacción. */
+  adjustmentId: string | null;
+  reconciledAt: number;
 }
 
 // ---------------------------------------------------------------------------
