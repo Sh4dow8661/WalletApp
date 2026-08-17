@@ -20,4 +20,10 @@ interface Env {
    * jamás en la petición: quien llama no elige a quién mira (§11).
    */
   MIGUEL_USER_ID?: string;
+  /**
+   * `"true"` deja que Miguel apunte gastos: **sólo** `POST /api/transactions`.
+   * Sin esto, su token no escribe nada. Es para que Ima le mande la foto de un
+   * recibo y él lo registre, sin darle nada más de escritura.
+   */
+  MIGUEL_PUEDE_APUNTAR?: string;
 }
