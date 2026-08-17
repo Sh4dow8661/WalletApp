@@ -127,3 +127,93 @@ describe("acceso de sólo lectura de Miguel", () => {
     expect(fila, "un GET no puede crear filas de ajustes").toBeNull();
   });
 });
+
+describe("apuntar gastos, cuando Ima lo activa", () => {
+  afterEach(() => {
+    delete env.MIGUEL_TOKEN;
+    delete env.MIGUEL_USER_ID;
+    delete env.MIGUEL_PUEDE_APUNTAR;
+  });
+
+  /** Un gasto mínimo válido en la primera cuenta del usuario. */
+  async function gasto(cliente: Awaited<ReturnType<typeof crearUsuario>>) {
+    const cuentas = (await (await cliente.get("/api/accounts")).json()) as { id: string }[];
+    const cats = (await (await cliente.get("/api/categories")).json()) as
+      { id: string; type?: string }[];
+    // La categoría es obligatoria para todo lo que no sea transferencia
+    // (transactions.ts:176), así que un gasto sin ella no es un gasto válido.
+    const cat = cats.find((c) => c.type === "EXPENSE") ?? cats[0]!;
+    return {
+      amount: 23.45,
+      type: "EXPENSE",
+      accountId: cuentas[0]!.id,
+      categoryId: cat.id,
+      note: "Mercadona — del recibo que me mandó Ima",
+      date: Date.now(),
+    };
+  }
+
+  const apuntar = (token: string, cuerpo: unknown) =>
+    fetchSinSesion("/api/transactions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+
+  it("sin el interruptor, no puede apuntar", async () => {
+    const ima = await crearUsuario();
+    env.MIGUEL_TOKEN = TOKEN;
+    env.MIGUEL_USER_ID = ima.userId;
+    expect((await apuntar(TOKEN, await gasto(ima))).status).toBe(401);
+  });
+
+  it("con el interruptor puesto, apunta y queda en las transacciones", async () => {
+    const ima = await crearUsuario();
+    env.MIGUEL_TOKEN = TOKEN;
+    env.MIGUEL_USER_ID = ima.userId;
+    env.MIGUEL_PUEDE_APUNTAR = "true";
+
+    const r = await apuntar(TOKEN, await gasto(ima));
+    expect(r.status, await r.clone().text()).toBe(201);
+
+    // Y lo ve el dueño con su propia sesión, que es la prueba de que es suyo.
+    const lista = await (await ima.get("/api/transactions")).text();
+    expect(lista).toContain("del recibo que me mandó Ima");
+  });
+
+  it("sigue sin poder editar, borrar, importar ni duplicar", async () => {
+    const ima = await crearUsuario();
+    env.MIGUEL_TOKEN = TOKEN;
+    env.MIGUEL_USER_ID = ima.userId;
+    env.MIGUEL_PUEDE_APUNTAR = "true";
+
+    const cabeceras = { Authorization: `Bearer ${TOKEN}` };
+    const fuera = [
+      ["PUT", "/api/transactions/loquesea"],
+      ["DELETE", "/api/transactions/loquesea"],
+      ["POST", "/api/transactions/duplicate"],
+      ["POST", "/api/data/json"],
+      ["POST", "/api/accounts"],
+      ["POST", "/api/budgets"],
+    ] as const;
+
+    for (const [metodo, ruta] of fuera) {
+      const r = await fetchSinSesion(ruta, { method: metodo, headers: cabeceras });
+      expect(r.status, `${metodo} ${ruta} tendría que quedar fuera`).toBe(401);
+    }
+  });
+
+  it("no puede apuntar en la cuenta de otro usuario", async () => {
+    const ima = await crearUsuario();
+    const otro = await crearUsuario();
+    env.MIGUEL_TOKEN = TOKEN;
+    env.MIGUEL_USER_ID = ima.userId;
+    env.MIGUEL_PUEDE_APUNTAR = "true";
+
+    // Cuenta del otro, token apuntando a Ima: lo tiene que rechazar la
+    // validación, porque esa cuenta no es del userId del token.
+    const ajena = await gasto(otro);
+    const r = await apuntar(TOKEN, ajena);
+    expect(r.status).not.toBe(201);
+  });
+});

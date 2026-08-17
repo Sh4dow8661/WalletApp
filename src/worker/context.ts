@@ -77,12 +77,29 @@ function tokenDeLectura(c: AppContext): string | null {
   const esperado = c.env.MIGUEL_TOKEN;
   const dueno = c.env.MIGUEL_USER_ID;
   if (!esperado || !dueno) return null;
-  if (c.req.method !== "GET") return null;
+  if (!metodoPermitido(c)) return null;
 
   const dado = (c.req.header("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!dado || !igualEnTiempoConstante(dado, esperado)) return null;
 
   return dueno;
+}
+
+/**
+ * Leer siempre; apuntar un gasto sólo si Ima lo ha activado.
+ *
+ * La lista blanca es una ruta y un método, comprobados aquí y no en la ruta: así
+ * añadir endpoints mañana no abre nada por descuido. Queda fuera todo lo demás,
+ * y a propósito lo más goloso — editar, borrar, importar en bloque y duplicar.
+ *
+ * `/duplicate` cuelga de `/api/transactions`, así que la comparación es exacta y
+ * no un `startsWith`, que lo dejaría entrar.
+ */
+function metodoPermitido(c: AppContext): boolean {
+  if (c.req.method === "GET") return true;
+  if (c.env.MIGUEL_PUEDE_APUNTAR !== "true") return false;
+  if (c.req.method !== "POST") return false;
+  return c.req.path === "/api/transactions" || c.req.path === "/api/transactions/";
 }
 
 /** Compara sin que el tiempo delate cuántos caracteres coincidían. */
